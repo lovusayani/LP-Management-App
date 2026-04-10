@@ -4,8 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bell, LogOut, Menu, X } from "lucide-react";
 import { useState } from "react";
+import { Bebas_Neue } from "next/font/google";
 
 import { logoutUser } from "@/mvc/frontend/controllers/auth.controller";
+
+const bebasNeue = Bebas_Neue({
+    weight: "400",
+    subsets: ["latin"],
+});
 
 const menuItems = [
     { href: "/dashboard/about", label: "About" },
@@ -19,7 +25,7 @@ interface DashboardTopbarProps {
     showBack?: boolean;
 }
 
-export const DashboardTopbar = ({ title = "L Max", showBack = false }: DashboardTopbarProps) => {
+export const DashboardTopbar = ({ title = "CURREEX", showBack = false }: DashboardTopbarProps) => {
     const [open, setOpen] = useState(false);
     const router = useRouter();
 
@@ -59,7 +65,10 @@ export const DashboardTopbar = ({ title = "L Max", showBack = false }: Dashboard
                             </button>
                         )}
 
-                        <div className="min-w-0 truncate text-[clamp(1.45rem,6.8vw,2.4rem)] font-semibold leading-tight tracking-tight text-white">
+                        <div
+                            className={`${bebasNeue.className} min-w-0 truncate leading-tight text-white`}
+                            style={{ fontSize: "32px", textTransform: "uppercase" }}
+                        >
                             {title}
                         </div>
                     </div>

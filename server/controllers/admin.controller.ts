@@ -42,10 +42,20 @@ const readPngDimensions = (filePath: string): { width: number; height: number } 
   };
 };
 
+const resolveLogoPath = (publicPath?: string): string => {
+  if (!publicPath) {
+    return "";
+  }
+
+  const relativePath = publicPath.replace(/^\//, "");
+  const absolutePath = path.join(process.cwd(), relativePath);
+  return fs.existsSync(absolutePath) ? publicPath : "";
+};
+
 const toBrandingPayload = (branding?: { darkLogoPath?: string; lightLogoPath?: string; mobileLogoPath?: string } | null) => ({
-  darkLogoPath: branding?.darkLogoPath || "",
-  lightLogoPath: branding?.lightLogoPath || "",
-  mobileLogoPath: branding?.mobileLogoPath || "",
+  darkLogoPath: resolveLogoPath(branding?.darkLogoPath),
+  lightLogoPath: resolveLogoPath(branding?.lightLogoPath),
+  mobileLogoPath: resolveLogoPath(branding?.mobileLogoPath),
 });
 
 const getNextSequence = async (key: string): Promise<number> => {
