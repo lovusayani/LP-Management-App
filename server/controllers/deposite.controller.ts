@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 
 import { Deposite, DepositeNetwork, DepositeType } from "../models/Deposite";
+import { PaymentSetup } from "../models/PaymentSetup";
 import { storageService } from "../services/storage.service";
 import { asyncHandler } from "../utils/asyncHandler";
 
@@ -52,7 +53,9 @@ export const createDeposite = asyncHandler(async (req: Request, res: Response) =
       throw new Error("Deposite network is required for On Chain Deposit");
     }
     network = rawNetwork;
-    walletAddress = ON_CHAIN_ADDRESSES[network];
+
+    const paymentSetup = await PaymentSetup.findOne({ key: "default" }).lean();
+    walletAddress = paymentSetup?.networks?.[network]?.walletAddress?.trim() || ON_CHAIN_ADDRESSES[network];
   }
 
   const deposite = await Deposite.create({

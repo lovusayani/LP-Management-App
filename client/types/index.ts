@@ -61,6 +61,15 @@ export interface SubmitDepositePayload {
   screenshot: File;
 }
 
+export interface PaymentNetworkConfig {
+  walletAddress: string;
+  qrCodePath: string;
+}
+
+export interface PaymentSetupConfig {
+  networks: Record<DepositeNetwork, PaymentNetworkConfig>;
+}
+
 export type WalletSwapDirection = "main_to_trade" | "trade_to_main";
 
 export type WithdrawChain = "TRC20" | "ERC20" | "BEP20";

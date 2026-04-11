@@ -5,8 +5,9 @@ import { Aldrich } from "next/font/google";
 import { useRouter } from "next/navigation";
 
 import { DashboardTopbar } from "@/mvc/frontend/views/dashboard/topbar.view";
-import { DepositeRecord } from "@/types";
-import { getDepositeHistory, submitDeposite } from "@/services/user.service";
+import { DepositeRecord, DepositeNetwork, PaymentSetupConfig } from "@/types";
+import { getDepositeHistory, getPaymentSetupConfig, submitDeposite } from "@/services/user.service";
+import { getPublicAssetUrl } from "@/services/api";
 
 const aldrich = Aldrich({
     weight: "400",
@@ -24,7 +25,7 @@ export default function DepositePage() {
     const [deviceWidth, setDeviceWidth] = useState<number | null>(null);
     const [activeSlide, setActiveSlide] = useState(0);
     const [formStep, setFormStep] = useState<1 | 2 | 3 | 4>(1);
-    const [amount, setAmount] = useState("10000");
+    const [amount, setAmount] = useState("10");
     const [depositeType, setDepositeType] = useState<"on_chain" | "f2f" | "buy_crypto">("on_chain");
     const [network, setNetwork] = useState("TRC20");
     const [screenshotName, setScreenshotName] = useState("");
@@ -34,6 +35,7 @@ export default function DepositePage() {
     const [depositeHistory, setDepositeHistory] = useState<DepositeRecord[]>([]);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [formError, setFormError] = useState("");
+    const [paymentSetupConfig, setPaymentSetupConfig] = useState<PaymentSetupConfig | null>(null);
 
     const sliderTrackStyle = useMemo(
         () => ({ transform: `translateX(-${activeSlide * 100}%)` }),
@@ -79,14 +81,27 @@ export default function DepositePage() {
         loadHistory();
     }, []);
 
+    useEffect(() => {
+        const loadPaymentSetup = async () => {
+            try {
+                const config = await getPaymentSetupConfig();
+                setPaymentSetupConfig(config);
+            } catch (error) {
+                console.warn("Failed to load payment setup config", error);
+            }
+        };
+
+        loadPaymentSetup();
+    }, []);
+
     const onSubmit = (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
     };
 
-    const networkWalletAddress: Record<string, string> = {
-        TRC20: "TRx9mDemoWalletAddress88621",
-        ERC20: "0xA91fDemoWalletAddress63D112Aa0",
-        BEP20: "0xBep20DemoWalletAddress9f11c6f",
+    const networkWalletAddress: Record<DepositeNetwork, string> = {
+        TRC20: paymentSetupConfig?.networks?.TRC20?.walletAddress || "TRx9mDemoWalletAddress88621",
+        ERC20: paymentSetupConfig?.networks?.ERC20?.walletAddress || "0xA91fDemoWalletAddress63D112Aa0",
+        BEP20: paymentSetupConfig?.networks?.BEP20?.walletAddress || "0xBep20DemoWalletAddress9f11c6f",
     };
 
     const onAmountNext = () => {
@@ -109,8 +124,13 @@ export default function DepositePage() {
         setFormStep(4);
     };
 
+    const isNetworkConfigured = (selectedNetwork: DepositeNetwork) => {
+        const networkConfig = paymentSetupConfig?.networks?.[selectedNetwork];
+        return Boolean(networkConfig?.walletAddress?.trim() && networkConfig?.qrCodePath?.trim());
+    };
+
     const onNetworkNext = () => {
-        if (!network) {
+        if (!network || !isNetworkConfigured(network as DepositeNetwork)) {
             return;
         }
         setFormStep(4);
@@ -274,13 +294,21 @@ export default function DepositePage() {
                         )}
 
                         {formStep === 3 && depositeType === "on_chain" && (
-                            <button
-                                type="button"
-                                onClick={onNetworkNext}
-                                className="mt-2 w-full rounded-lg bg-[linear-gradient(120deg,#1d4ed8_0%,#7c3aed_100%)] px-4 py-2.5 text-sm font-semibold text-white"
-                            >
-                                Next
-                            </button>
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={onNetworkNext}
+                                    disabled={!isNetworkConfigured(network as DepositeNetwork)}
+                                    className="mt-2 w-full rounded-lg bg-[linear-gradient(120deg,#1d4ed8_0%,#7c3aed_100%)] px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Next
+                                </button>
+                                {!isNetworkConfigured(network as DepositeNetwork) && (
+                                    <p className="mt-2 text-sm text-amber-300">
+                                        Please select a network with both wallet address and QR code configured.
+                                    </p>
+                                )}
+                            </>
                         )}
 
                         {formStep >= 4 && (
@@ -288,9 +316,19 @@ export default function DepositePage() {
                                 {depositeType === "on_chain" ? (
                                     <div className="space-y-2 rounded-xl border border-white/10 bg-[#0f1638] p-3">
                                         <p className="text-sm font-semibold text-zinc-100">Scan QR & Send Funds</p>
-                                        <div className="mx-auto h-40 w-40 rounded-md border border-white/20 bg-[repeating-linear-gradient(45deg,#0f173d_0_8px,#f8fafc_8px_16px)]" />
+                                        {paymentSetupConfig?.networks?.[network as DepositeNetwork]?.qrCodePath ? (
+                                            <img
+                                                src={getPublicAssetUrl(paymentSetupConfig.networks[network as DepositeNetwork].qrCodePath)}
+                                                alt={`${network} QR code`}
+                                                className="mx-auto h-40 w-40 rounded-md border border-white/20 bg-[#0c112f] object-contain"
+                                            />
+                                        ) : (
+                                            <div className="mx-auto flex h-40 w-40 items-center justify-center rounded-md border border-dashed border-white/20 bg-[#0c112f] text-sm text-zinc-500">
+                                                No QR code configured yet
+                                            </div>
+                                        )}
                                         <p className="break-all rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-xs text-zinc-200">
-                                            {networkWalletAddress[network]}
+                                            {networkWalletAddress[network as DepositeNetwork]}
                                         </p>
                                     </div>
                                 ) : (
@@ -371,10 +409,10 @@ export default function DepositePage() {
                                 <div className="text-right">
                                     <p
                                         className={`text-xs font-semibold ${item.status === "approved"
-                                                ? "text-emerald-300"
-                                                : item.status === "rejected"
-                                                    ? "text-rose-300"
-                                                    : "text-amber-300"
+                                            ? "text-emerald-300"
+                                            : item.status === "rejected"
+                                                ? "text-rose-300"
+                                                : "text-amber-300"
                                             }`}
                                     >
                                         {item.status === "approved"

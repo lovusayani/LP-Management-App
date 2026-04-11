@@ -16,7 +16,7 @@ import {
   updateSettings,
   uploadProfileAvatar,
 } from "../controllers/user.controller";
-import { downloadPnlUpload, getPublicPageContent, listPnlUploads } from "../controllers/admin.controller";
+import { downloadPnlUpload, getPaymentSetup, getPublicPageContent, listPnlUploads } from "../controllers/admin.controller";
 import { createDeposite, getDepositeHistory } from "../controllers/deposite.controller";
 import {
   createWithdraw,
@@ -54,6 +54,7 @@ router.post(
 
 router.post("/deposite", kycUpload.single("screenshot"), createDeposite);
 router.get("/deposite-history", getDepositeHistory);
+router.get("/payment-setup", getPaymentSetup);
 router.get("/withdraw/wallet", getWithdrawWallet);
 router.post(
   "/withdraw/wallet",

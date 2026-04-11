@@ -6,11 +6,13 @@ import { Branding } from "../models/Branding";
 import { Counter } from "../models/Counter";
 import { Deposite, DepositeStatus } from "../models/Deposite";
 import { PageContent, PageSlug } from "../models/PageContent";
+import { PaymentSetup } from "../models/PaymentSetup";
 import { PushToken } from "../models/PushToken";
 import { TradeLog, TradeType } from "../models/TradeLog";
 import { TradeWallet } from "../models/TradeWallet";
 import { User } from "../models/User";
 import { Withdraw } from "../models/Withdraw";
+import { storageService } from "../services/storage.service";
 import {
   isPushNotificationConfigured,
   sendPushNotificationToTokens,
@@ -56,6 +58,61 @@ const toBrandingPayload = (branding?: { darkLogoPath?: string; lightLogoPath?: s
   darkLogoPath: resolveLogoPath(branding?.darkLogoPath),
   lightLogoPath: resolveLogoPath(branding?.lightLogoPath),
   mobileLogoPath: resolveLogoPath(branding?.mobileLogoPath),
+});
+
+const resolvePublicPath = (publicPath?: string): string => {
+  if (!publicPath) {
+    return "";
+  }
+
+  const relativePath = publicPath.replace(/^\//, "");
+  const absolutePath = path.join(process.cwd(), relativePath);
+  return fs.existsSync(absolutePath) ? publicPath : "";
+};
+
+const deletePublicFile = (publicPath?: string): void => {
+  if (!publicPath) {
+    return;
+  }
+
+  const relativePath = publicPath.replace(/^\//, "");
+  const absolutePath = path.join(process.cwd(), relativePath);
+
+  if (fs.existsSync(absolutePath)) {
+    fs.unlinkSync(absolutePath);
+  }
+};
+
+const DEFAULT_PAYMENT_SETUP = {
+  key: "default",
+  networks: {
+    TRC20: { walletAddress: "", qrCodePath: "" },
+    ERC20: { walletAddress: "", qrCodePath: "" },
+    BEP20: { walletAddress: "", qrCodePath: "" },
+  },
+};
+
+const toPaymentSetupPayload = (paymentSetup?: {
+  networks?: {
+    TRC20?: { walletAddress?: string; qrCodePath?: string };
+    ERC20?: { walletAddress?: string; qrCodePath?: string };
+    BEP20?: { walletAddress?: string; qrCodePath?: string };
+  };
+} | null) => ({
+  networks: {
+    TRC20: {
+      walletAddress: paymentSetup?.networks?.TRC20?.walletAddress || "",
+      qrCodePath: resolvePublicPath(paymentSetup?.networks?.TRC20?.qrCodePath),
+    },
+    ERC20: {
+      walletAddress: paymentSetup?.networks?.ERC20?.walletAddress || "",
+      qrCodePath: resolvePublicPath(paymentSetup?.networks?.ERC20?.qrCodePath),
+    },
+    BEP20: {
+      walletAddress: paymentSetup?.networks?.BEP20?.walletAddress || "",
+      qrCodePath: resolvePublicPath(paymentSetup?.networks?.BEP20?.qrCodePath),
+    },
+  },
 });
 
 const getNextSequence = async (key: string): Promise<number> => {
@@ -964,6 +1021,93 @@ export const uploadBrandingLogo = asyncHandler(async (req: Request, res: Respons
     message: `${variant} logo uploaded successfully`,
     branding: toBrandingPayload(nextBranding),
   });
+});
+
+export const getPaymentSetup = asyncHandler(async (_req: Request, res: Response) => {
+  const paymentSetup = await PaymentSetup.findOne({ key: "default" }).lean();
+  return res.json({ paymentSetup: toPaymentSetupPayload(paymentSetup) });
+});
+
+export const updatePaymentSetup = asyncHandler(async (req: Request, res: Response) => {
+  const walletAddresses = req.body.walletAddresses as Partial<Record<"TRC20" | "ERC20" | "BEP20", string>>;
+
+  let paymentSetup = await PaymentSetup.findOne({ key: "default" });
+  if (!paymentSetup) {
+    paymentSetup = new PaymentSetup(DEFAULT_PAYMENT_SETUP);
+  }
+
+  if (walletAddresses?.TRC20 !== undefined) {
+    paymentSetup.networks.TRC20.walletAddress = String(walletAddresses.TRC20 || "").trim();
+  }
+  if (walletAddresses?.ERC20 !== undefined) {
+    paymentSetup.networks.ERC20.walletAddress = String(walletAddresses.ERC20 || "").trim();
+  }
+  if (walletAddresses?.BEP20 !== undefined) {
+    paymentSetup.networks.BEP20.walletAddress = String(walletAddresses.BEP20 || "").trim();
+  }
+
+  await paymentSetup.save();
+
+  return res.json({ paymentSetup: toPaymentSetupPayload(paymentSetup) });
+});
+
+export const uploadPaymentQr = asyncHandler(async (req: Request, res: Response) => {
+  const network = String(req.params.network || "").toUpperCase() as "TRC20" | "ERC20" | "BEP20";
+  if (!["TRC20", "ERC20", "BEP20"].includes(network)) {
+    res.status(400);
+    throw new Error("Invalid network");
+  }
+
+  if (!req.file) {
+    res.status(400);
+    throw new Error("QR image upload is required");
+  }
+
+  let paymentSetup = await PaymentSetup.findOne({ key: "default" });
+  if (!paymentSetup) {
+    paymentSetup = new PaymentSetup(DEFAULT_PAYMENT_SETUP);
+  }
+
+  const previousPath = paymentSetup.networks[network]?.qrCodePath || "";
+  if (previousPath && previousPath !== `/uploads/${req.file.filename}`) {
+    deletePublicFile(previousPath);
+  }
+
+  paymentSetup.networks[network] = {
+    ...paymentSetup.networks[network],
+    qrCodePath: `/uploads/${req.file.filename}`,
+  };
+
+  await paymentSetup.save();
+
+  return res.json({ paymentSetup: toPaymentSetupPayload(paymentSetup) });
+});
+
+export const deletePaymentQr = asyncHandler(async (req: Request, res: Response) => {
+  const network = String(req.params.network || "").toUpperCase() as "TRC20" | "ERC20" | "BEP20";
+  if (!["TRC20", "ERC20", "BEP20"].includes(network)) {
+    res.status(400);
+    throw new Error("Invalid network");
+  }
+
+  const paymentSetup = await PaymentSetup.findOne({ key: "default" });
+  if (!paymentSetup) {
+    return res.json({ paymentSetup: toPaymentSetupPayload(null) });
+  }
+
+  const previousPath = paymentSetup.networks[network]?.qrCodePath || "";
+  if (previousPath) {
+    deletePublicFile(previousPath);
+  }
+
+  paymentSetup.networks[network] = {
+    ...paymentSetup.networks[network],
+    qrCodePath: "",
+  };
+
+  await paymentSetup.save();
+
+  return res.json({ paymentSetup: toPaymentSetupPayload(paymentSetup) });
 });
 
 // ─── PnL Uploads ─────────────────────────────────────────────────────────────

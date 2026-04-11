@@ -58,3 +58,15 @@ export const pngUpload = multer({
     cb(null, true);
   },
 });
+
+export const imageUpload = multer({
+  storage,
+  limits: { fileSize: env.maxFileSizeBytes },
+  fileFilter: (_req, file, cb) => {
+    const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
+    if (!isImage) {
+      return cb(new Error("Only image files are allowed"));
+    }
+    cb(null, true);
+  },
+});

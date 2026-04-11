@@ -28,11 +28,15 @@ import {
   updateLpUserLockInBalance,
   updateLpUserPassword,
   uploadBrandingLogo,
+  getPaymentSetup,
+  updatePaymentSetup,
+  uploadPaymentQr,
+  deletePaymentQr,
   uploadPnlFiles,
 } from "../controllers/admin.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
-import { pdfUpload, pngUpload } from "../middlewares/upload.middleware";
+import { pdfUpload, pngUpload, imageUpload } from "../middlewares/upload.middleware";
 import { validateRequest } from "../middlewares/validate.middleware";
 
 const router = Router();
@@ -109,6 +113,22 @@ router.post(
   validateRequest,
   pngUpload.single("logo"),
   uploadBrandingLogo
+);
+
+router.get("/payment-setup", getPaymentSetup);
+router.patch("/payment-setup", updatePaymentSetup);
+router.post(
+  "/payment-setup/qr/:network",
+  [param("network").isString().isIn(["TRC20", "ERC20", "BEP20"])],
+  validateRequest,
+  imageUpload.single("qrCode"),
+  uploadPaymentQr
+);
+router.delete(
+  "/payment-setup/qr/:network",
+  [param("network").isString().isIn(["TRC20", "ERC20", "BEP20"])],
+  validateRequest,
+  deletePaymentQr
 );
 
 router.get("/notifications/overview", getNotificationOverview);

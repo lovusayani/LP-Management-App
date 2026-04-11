@@ -156,6 +156,64 @@ export interface PageContentRecord {
   content: string;
 }
 
+export interface PaymentSetupConfig {
+  networks: Record<"TRC20" | "ERC20" | "BEP20", { walletAddress: string; qrCodePath: string }>;
+}
+
+export interface UpdatePaymentSetupPayload {
+  walletAddresses?: Partial<Record<"TRC20" | "ERC20" | "BEP20", string>>;
+}
+
+export const getAdminPaymentSetup = async (): Promise<PaymentSetupConfig> => {
+  const data = await apiFetch<{ paymentSetup: PaymentSetupConfig }>(
+    "/admin/payment-setup",
+    { method: "GET" }
+  );
+  return data.paymentSetup;
+};
+
+export const updateAdminPaymentSetup = async (
+  payload: UpdatePaymentSetupPayload
+): Promise<PaymentSetupConfig> => {
+  const data = await apiFetch<{ paymentSetup: PaymentSetupConfig }>(
+    "/admin/payment-setup",
+    {
+      method: "PATCH",
+      body: payload,
+    }
+  );
+  return data.paymentSetup;
+};
+
+export const uploadAdminPaymentQr = async (
+  network: "TRC20" | "ERC20" | "BEP20",
+  file: File
+): Promise<PaymentSetupConfig> => {
+  const formData = new FormData();
+  formData.append("qrCode", file);
+
+  const data = await apiFetch<{ paymentSetup: PaymentSetupConfig }>(
+    `/admin/payment-setup/qr/${network}`,
+    {
+      method: "POST",
+      formData,
+    }
+  );
+  return data.paymentSetup;
+};
+
+export const deleteAdminPaymentQr = async (
+  network: "TRC20" | "ERC20" | "BEP20"
+): Promise<PaymentSetupConfig> => {
+  const data = await apiFetch<{ paymentSetup: PaymentSetupConfig }>(
+    `/admin/payment-setup/qr/${network}`,
+    {
+      method: "DELETE",
+    }
+  );
+  return data.paymentSetup;
+};
+
 export const getAdminPageContent = async (slug: PageSlug): Promise<PageContentRecord> => {
   return apiFetch<PageContentRecord>(`/admin/page-content/${slug}`, { method: "GET" });
 };

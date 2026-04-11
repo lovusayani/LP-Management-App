@@ -151,6 +151,17 @@ export const getSettings = async (): Promise<UserSettings> => {
   return data.settings;
 };
 
+export interface PaymentSetupConfig {
+  networks: Record<"TRC20" | "ERC20" | "BEP20", { walletAddress: string; qrCodePath: string }>;
+}
+
+export const getPaymentSetupConfig = async (): Promise<PaymentSetupConfig> => {
+  const data = await apiFetch<{ paymentSetup: PaymentSetupConfig }>("/user/payment-setup", {
+    method: "GET",
+  });
+  return data.paymentSetup;
+};
+
 export const updateSettings = async (settings: UserSettings): Promise<UserSettings> => {
   const data = await apiFetch<{ settings: UserSettings }>("/user/settings", {
     method: "PUT",

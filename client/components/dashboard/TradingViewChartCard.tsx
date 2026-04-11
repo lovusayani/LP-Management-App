@@ -18,7 +18,6 @@ export function TradingViewChartCard() {
                     src={chartUrl}
                     className="block h-[480px] w-full border-0"
                     loading="lazy"
-                    allowTransparency={true}
                 />
             </div>
         </div>
