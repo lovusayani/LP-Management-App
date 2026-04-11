@@ -24,6 +24,7 @@ const topLinks = [
 const setupLinks = [
     { href: "/admin/setup", label: "Setup" },
     { href: "/admin/page-setup", label: "Page Setup" },
+    { href: "/admin/payment-setup", label: "Payment Setup" },
     { href: "/admin/wallets/pnl-uploads", label: "PnL Uploads" },
 ];
 
