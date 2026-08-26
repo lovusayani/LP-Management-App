@@ -141,3 +141,5 @@ Frontend runs on `http://localhost:3000`.
 - KYC files are stored in `/server/uploads` and served from `/uploads/*`.
 - Deposit/Withdraw are currently UI placeholders per scope.
 - Local storage abstraction is ready for future S3 implementation.
+
+<!-- deploy-webhook test: 2026-08-26T17:52:47Z -->
