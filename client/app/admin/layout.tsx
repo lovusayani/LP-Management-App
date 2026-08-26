@@ -19,6 +19,7 @@ const topLinks = [
     { href: "/admin/users", label: "Users" },
     { href: "/admin/notification", label: "Notification" },
     { href: "/admin/prof-loss", label: "Prof/Loss" },
+    { href: "/admin/trade-broker", label: "Trade Broker" },
 ];
 
 const setupLinks = [

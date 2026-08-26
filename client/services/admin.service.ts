@@ -495,3 +495,50 @@ export const getAdminPnlUploads = async (): Promise<PnlUploadRecord[]> => {
 export const deleteAdminPnlUpload = async (id: string): Promise<void> => {
   await apiFetch<{ message: string }>(`/admin/pnl-uploads/${id}`, { method: "DELETE" });
 };
+
+export interface ApiSourceUser {
+  id: string;
+  fullName: string;
+  email: string;
+}
+
+export interface ApiSourceRecord {
+  id: string;
+  name: string;
+  baseUrl: string;
+  apiKeyMasked: string;
+  authHeader: "x-api-key" | "bearer";
+  isActive: boolean;
+  assignedUsers: ApiSourceUser[];
+  createdAt?: string;
+}
+
+export interface CreateApiSourcePayload {
+  name: string;
+  baseUrl: string;
+  apiKey: string;
+  authHeader?: "x-api-key" | "bearer";
+}
+
+export const getAdminApiSources = async (): Promise<ApiSourceRecord[]> => {
+  return apiFetch<ApiSourceRecord[]>("/admin/api-sources", { method: "GET" });
+};
+
+export const createAdminApiSource = async (payload: CreateApiSourcePayload): Promise<ApiSourceRecord> => {
+  return apiFetch<ApiSourceRecord>("/admin/api-sources", { method: "POST", body: payload });
+};
+
+export const updateAdminApiSource = async (
+  id: string,
+  payload: Partial<CreateApiSourcePayload> & { isActive?: boolean }
+): Promise<ApiSourceRecord> => {
+  return apiFetch<ApiSourceRecord>(`/admin/api-sources/${id}`, { method: "PATCH", body: payload });
+};
+
+export const deleteAdminApiSource = async (id: string): Promise<void> => {
+  await apiFetch<{ message: string }>(`/admin/api-sources/${id}`, { method: "DELETE" });
+};
+
+export const setAdminApiSourceUsers = async (id: string, userIds: string[]): Promise<ApiSourceRecord> => {
+  return apiFetch<ApiSourceRecord>(`/admin/api-sources/${id}/users`, { method: "PUT", body: { userIds } });
+};

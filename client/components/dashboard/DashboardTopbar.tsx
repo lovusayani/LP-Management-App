@@ -14,6 +14,7 @@ const bebasNeue = Bebas_Neue({
 });
 
 const menuItems = [
+    { href: "/dashboard/brokerview", label: "Dashboard" },
     { href: "/dashboard/about", label: "About" },
     { href: "/dashboard/help", label: "Help" },
     { href: "/dashboard/support", label: "Support" },

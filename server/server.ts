@@ -9,6 +9,7 @@ import path from "path";
 import { connectDB } from "./config/db";
 import { env, validateEnv } from "./config/env";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
+import { ApiSource } from "./models/ApiSource";
 import { User } from "./models/User";
 import routes from "./routes";
 
@@ -60,11 +61,35 @@ const ensureDemoLp = async (): Promise<void> => {
   console.log("Default demo LP created");
 };
 
+const ensureDefaultApiSource = async (): Promise<void> => {
+  if (!env.suimfxApiKey) {
+    return;
+  }
+
+  const existing = await ApiSource.findOne({ baseUrl: env.suimfxApiBaseUrl });
+  if (existing) {
+    return;
+  }
+
+  const demoLp = env.demoLpEmail ? await User.findOne({ email: env.demoLpEmail.toLowerCase() }) : null;
+
+  await ApiSource.create({
+    name: "Suimfx (default)",
+    baseUrl: env.suimfxApiBaseUrl,
+    apiKey: env.suimfxApiKey,
+    authHeader: "x-api-key",
+    assignedUsers: demoLp ? [demoLp._id] : [],
+  });
+
+  console.log("Default Suimfx API source created");
+};
+
 const bootstrap = async () => {
   validateEnv();
   await connectDB();
   await ensureAdmin();
   await ensureDemoLp();
+  await ensureDefaultApiSource();
 
   const app = express();
 

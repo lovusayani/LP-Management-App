@@ -34,6 +34,13 @@ import {
   deletePaymentQr,
   uploadPnlFiles,
 } from "../controllers/admin.controller";
+import {
+  createApiSource,
+  deleteApiSource,
+  listApiSources,
+  setApiSourceUsers,
+  updateApiSource,
+} from "../controllers/apiSource.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
 import { pdfUpload, pngUpload, imageUpload } from "../middlewares/upload.middleware";
@@ -216,5 +223,38 @@ router.patch(
 router.post("/pnl-uploads", pdfUpload.array("files", 20), uploadPnlFiles);
 router.get("/pnl-uploads", listPnlUploads);
 router.delete("/pnl-uploads/:id", [param("id").isMongoId()], validateRequest, deletePnlUpload);
+
+router.get("/api-sources", listApiSources);
+router.post(
+  "/api-sources",
+  [
+    body("name").isString().trim().isLength({ min: 2, max: 100 }),
+    body("baseUrl").isURL({ require_protocol: true }),
+    body("apiKey").isString().trim().isLength({ min: 4 }),
+    body("authHeader").optional().isString().isIn(["x-api-key", "bearer"]),
+  ],
+  validateRequest,
+  createApiSource
+);
+router.patch(
+  "/api-sources/:id",
+  [
+    param("id").isMongoId(),
+    body("name").optional().isString().trim().isLength({ min: 2, max: 100 }),
+    body("baseUrl").optional().isURL({ require_protocol: true }),
+    body("apiKey").optional().isString().trim(),
+    body("authHeader").optional().isString().isIn(["x-api-key", "bearer"]),
+    body("isActive").optional().isBoolean(),
+  ],
+  validateRequest,
+  updateApiSource
+);
+router.delete("/api-sources/:id", [param("id").isMongoId()], validateRequest, deleteApiSource);
+router.put(
+  "/api-sources/:id/users",
+  [param("id").isMongoId(), body("userIds").isArray(), body("userIds.*").isMongoId()],
+  validateRequest,
+  setApiSourceUsers
+);
 
 export default router;

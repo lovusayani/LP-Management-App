@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { useHydratedUser } from "@/hooks/useHydratedUser";
 import { getNextRoute } from "@/mvc/frontend/models/session.model";
@@ -10,9 +10,13 @@ import { Sidebar } from "@/mvc/frontend/views/navigation/sidebar.view";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
     const router = useRouter();
+    const pathname = usePathname();
     const { loading, user } = useHydratedUser();
     const isDevPreview = process.env.NODE_ENV === "development";
     const [deviceWidth, setDeviceWidth] = useState<number | null>(null);
+    // Pages under their own design directory (e.g. brokerview) own their full shell,
+    // including their own bottom bar — skip the default shell for those routes.
+    const hasOwnShell = pathname.startsWith("/dashboard/brokerview");
 
     useLayoutEffect(() => {
         const updateWidth = () => {
@@ -54,6 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
 
     if (!user && isDevPreview) {
+        if (hasOwnShell) {
+            return <>{children}</>;
+        }
+
         return (
             <div className="mx-auto flex min-h-screen w-full max-w-none gap-0 bg-[radial-gradient(circle_at_top,_#11286f_0%,_#02083f_32%,_#02062b_72%,_#01041f_100%)] px-0 pb-24 pt-0 lg:max-w-7xl lg:gap-4 lg:px-4 lg:pb-8 lg:pt-6">
                 {/* ** Sidebar ** */}
@@ -73,6 +81,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <p className="text-zinc-400">Loading dashboard...</p>
             </div>
         );
+    }
+
+    if (hasOwnShell) {
+        return <>{children}</>;
     }
 
     return (
