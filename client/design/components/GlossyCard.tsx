@@ -38,27 +38,38 @@ const ACCENT_STYLES: Record<GlossyAccent, { border: string; glow: string; iconBg
 
 interface GlossyCardProps {
     accent: GlossyAccent;
-    icon: LucideIcon;
+    icon?: LucideIcon;
     title: string;
-    subtitle: string;
+    subtitle?: string;
+    value?: string;
     className?: string;
     children?: ReactNode;
 }
 
-export function GlossyCard({ accent, icon: Icon, title, subtitle, className = "", children }: GlossyCardProps) {
+export function GlossyCard({ accent, icon: Icon, title, subtitle, value, className = "", children }: GlossyCardProps) {
     const styles = ACCENT_STYLES[accent];
+    const subtitleIsNegative = subtitle?.trim().startsWith("-");
 
     return (
         <div
-            className={`relative overflow-hidden rounded-3xl border ${styles.border} bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] ${className}`}
+            className={`relative overflow-hidden rounded-[8px] border ${styles.border} bg-white/[0.04] p-4 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] ${className}`}
         >
             <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${styles.glow}`} />
             <div className="relative z-10">
-                <div className={`inline-grid h-10 w-10 place-items-center rounded-2xl ${styles.iconBg} ${styles.iconColor}`}>
-                    <Icon className="h-5 w-5" strokeWidth={2} />
+                <div className="flex items-start justify-between">
+                    <p className="text-sm font-semibold text-zinc-300">{title}</p>
+                    {Icon && <Icon className={`h-4 w-4 ${styles.iconColor}`} strokeWidth={2} />}
                 </div>
-                <p className="mt-3 text-sm font-semibold text-white">{title}</p>
-                <p className="mt-0.5 text-xs text-zinc-400">{subtitle}</p>
+                {value && <p className="mt-4 break-words text-center text-2xl font-bold text-white">{value}</p>}
+                {subtitle && (
+                    <p
+                        className={`mt-1 text-center text-xs font-medium ${
+                            subtitleIsNegative ? "text-rose-400" : "text-zinc-400"
+                        }`}
+                    >
+                        {subtitle}
+                    </p>
+                )}
                 {children}
             </div>
         </div>
