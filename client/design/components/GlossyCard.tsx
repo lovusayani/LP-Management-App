@@ -1,7 +1,7 @@
 import { LucideIcon } from "lucide-react";
 import { ReactNode } from "react";
 
-export type GlossyAccent = "blue" | "green" | "purple" | "violet" | "amber";
+export type GlossyAccent = "blue" | "green" | "purple" | "violet" | "amber" | "cyan";
 
 const ACCENT_STYLES: Record<GlossyAccent, { border: string; glow: string; iconBg: string; iconColor: string }> = {
     blue: {
@@ -33,6 +33,12 @@ const ACCENT_STYLES: Record<GlossyAccent, { border: string; glow: string; iconBg
         glow: "from-amber-500/20 via-amber-500/5 to-transparent",
         iconBg: "bg-amber-500/20",
         iconColor: "text-amber-300",
+    },
+    cyan: {
+        border: "border-cyan-400/30",
+        glow: "from-cyan-500/20 via-cyan-500/5 to-transparent",
+        iconBg: "bg-cyan-500/20",
+        iconColor: "text-cyan-300",
     },
 };
 

@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Layers, Sun, TrendingUp, Users, Volume2, Wallet } from "lucide-react";
+import { CheckCircle2, Layers, ListChecks, TrendingUp, Users, Wallet } from "lucide-react";
 
 import { BrokerPageFrame } from "@/design/components/BrokerPageFrame";
 import { GlossyCard } from "@/design/components/GlossyCard";
-import { SliderRow } from "@/design/components/SliderRow";
 import { getTrades, SuimfxTrade } from "@/services/trades.service";
 import { getWalletBalances } from "@/services/user.service";
 
@@ -66,6 +65,9 @@ export function BrokerView() {
     const monthTradeBalance = monthTrades.reduce((sum, t) => sum + (t.open_amount || 0), 0);
     const monthPnl = monthTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
 
+    const openPositionsCount = trades.filter((t) => t.status === "Open").length;
+    const closedTodayCount = trades.filter((t) => t.status === "Closed" && isToday(t.close_datetime)).length;
+
     return (
         <BrokerPageFrame title="Dashboard">
             <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] min-h-[120px]" />
@@ -97,11 +99,18 @@ export function BrokerView() {
                     value={loading ? "..." : formatCurrency(todaysPnl)}
                     subtitle={loading ? undefined : formatCurrency(monthPnl)}
                 />
-            </div>
-
-            <div className="space-y-3">
-                <SliderRow icon={Sun} label="Atmospheric Brightness" percent={80} />
-                <SliderRow icon={Volume2} label="Surround Volume" percent={45} />
+                <GlossyCard
+                    accent="amber"
+                    icon={ListChecks}
+                    title="Open Position"
+                    value={loading ? "..." : String(openPositionsCount)}
+                />
+                <GlossyCard
+                    accent="cyan"
+                    icon={CheckCircle2}
+                    title="Closed Orders"
+                    value={loading ? "..." : String(closedTodayCount)}
+                />
             </div>
         </BrokerPageFrame>
     );
