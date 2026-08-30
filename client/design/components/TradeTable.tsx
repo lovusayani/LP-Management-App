@@ -8,8 +8,10 @@ export interface TradeRow {
     account: string;
     symbol: string;
     side: "Buy" | "Sell";
+    lotSize?: number;
     openAmount: number;
     closeAmount: number | null;
+    usedMargin?: number;
     pnl: number;
     time: string;
     source: string;
@@ -20,7 +22,17 @@ interface TradeTableProps {
     rows: TradeRow[];
 }
 
-type SortKey = "account" | "symbol" | "side" | "openAmount" | "closeAmount" | "pnl" | "time" | "source";
+type SortKey =
+    | "account"
+    | "symbol"
+    | "side"
+    | "lotSize"
+    | "openAmount"
+    | "closeAmount"
+    | "usedMargin"
+    | "pnl"
+    | "time"
+    | "source";
 type SortDir = "asc" | "desc";
 type SideFilter = "all" | "Buy" | "Sell";
 
@@ -28,7 +40,11 @@ const PAGE_SIZE = 10;
 
 const currency = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const formatAmount = (value: number | null) => (value === null ? "—" : currency.format(value));
+const formatAmount = (value: number | null | undefined) => (value === null || value === undefined ? "—" : currency.format(value));
+
+const lotFormat = new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const formatLots = (value: number | undefined) => (value === undefined ? "—" : lotFormat.format(value));
 
 const formatPnl = (value: number) => `${value >= 0 ? "+" : ""}${currency.format(value)}`;
 
@@ -48,8 +64,10 @@ const COLUMNS: { key: SortKey; label: string }[] = [
     { key: "account", label: "Account" },
     { key: "symbol", label: "Symbol" },
     { key: "side", label: "Side" },
+    { key: "lotSize", label: "Lots" },
     { key: "openAmount", label: "Open" },
     { key: "closeAmount", label: "Close" },
+    { key: "usedMargin", label: "Margin" },
     { key: "pnl", label: "P/L" },
     { key: "time", label: "__TIME__" },
     { key: "source", label: "Source" },
@@ -80,11 +98,17 @@ export function TradeTable({ timeLabel, rows }: TradeTableProps) {
         copy.sort((a, b) => {
             let cmp = 0;
             switch (sortKey) {
+                case "lotSize":
+                    cmp = (a.lotSize ?? -Infinity) - (b.lotSize ?? -Infinity);
+                    break;
                 case "openAmount":
                     cmp = a.openAmount - b.openAmount;
                     break;
                 case "closeAmount":
                     cmp = (a.closeAmount ?? -Infinity) - (b.closeAmount ?? -Infinity);
+                    break;
+                case "usedMargin":
+                    cmp = (a.usedMargin ?? -Infinity) - (b.usedMargin ?? -Infinity);
                     break;
                 case "pnl":
                     cmp = a.pnl - b.pnl;
@@ -198,8 +222,10 @@ export function TradeTable({ timeLabel, rows }: TradeTableProps) {
                                                         {row.side}
                                                     </span>
                                                 </td>
+                                                <td className="px-4 py-3 text-zinc-300">{formatLots(row.lotSize)}</td>
                                                 <td className="px-4 py-3 text-zinc-300">{formatAmount(row.openAmount)}</td>
                                                 <td className="px-4 py-3 text-zinc-300">{formatAmount(row.closeAmount)}</td>
+                                                <td className="px-4 py-3 text-zinc-300">{formatAmount(row.usedMargin)}</td>
                                                 <td className={`px-4 py-3 font-semibold ${isProfit ? "text-emerald-300" : "text-rose-300"}`}>
                                                     {formatPnl(row.pnl)}
                                                 </td>

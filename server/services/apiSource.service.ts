@@ -5,8 +5,10 @@ export interface ExternalTrade {
   username: string;
   symbol: string;
   position: "Buy" | "Sell";
+  lot_size?: number;
   open_amount: number;
   close_amount: number | null;
+  used_margin?: number;
   pnl: number;
   open_datetime: string;
   close_datetime: string | null;
