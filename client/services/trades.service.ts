@@ -32,3 +32,15 @@ export const getTrades = (params: { status?: "open" | "closed" | "all"; limit?: 
 
     return apiFetch<TradesResponse>(`/trades${qs ? `?${qs}` : ""}`);
 };
+
+export const getChargeSummary = () => apiFetch<{ today: number; month: number }>("/trades/charges/summary");
+
+export interface WalletOverview {
+    oldBalance: number;
+    charges: number;
+    profit: number;
+    loss: number;
+    newBalance: number;
+}
+
+export const getWalletOverview = () => apiFetch<WalletOverview>("/trades/wallet-overview");

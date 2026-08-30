@@ -69,7 +69,7 @@ export function GlossyCard({ accent, icon: Icon, title, subtitle, value, classNa
                 {value && <p className="mt-4 break-words text-center text-2xl font-bold text-white">{value}</p>}
                 {subtitle && (
                     <p
-                        className={`mt-1 text-center text-xs font-medium ${
+                        className={`mt-1 text-center text-xs font-bold ${
                             subtitleIsNegative ? "text-rose-400" : "text-zinc-400"
                         }`}
                     >

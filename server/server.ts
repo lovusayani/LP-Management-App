@@ -12,6 +12,7 @@ import { errorHandler, notFound } from "./middlewares/error.middleware";
 import { ApiSource } from "./models/ApiSource";
 import { User } from "./models/User";
 import routes from "./routes";
+import { scheduleDailyChargeJob } from "./services/dailyCharge.service";
 
 const ensureAdmin = async (): Promise<void> => {
   if (!env.adminEmail || !env.adminPassword) {
@@ -90,6 +91,7 @@ const bootstrap = async () => {
   await ensureAdmin();
   await ensureDemoLp();
   await ensureDefaultApiSource();
+  scheduleDailyChargeJob();
 
   const app = express();
 

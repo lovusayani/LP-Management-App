@@ -19,7 +19,6 @@ const topLinks = [
     { href: "/admin/users", label: "Users" },
     { href: "/admin/notification", label: "Notification" },
     { href: "/admin/prof-loss", label: "Prof/Loss" },
-    { href: "/admin/trade-broker", label: "Trade Broker" },
 ];
 
 const setupLinks = [
@@ -33,6 +32,12 @@ const walletLinks = [
     { href: "/admin/wallets", label: "All Wallets" },
     { href: "/admin/wallets/deposits", label: "Deposites" },
     { href: "/admin/wallets/withdrawals", label: "Withdrawls" },
+];
+
+const tradeBrokerLinks = [
+    { href: "/admin/trade-broker/report", label: "Report" },
+    { href: "/admin/trade-broker/charges", label: "Charges" },
+    { href: "/admin/trade-broker/api", label: "Api" },
 ];
 
 type HeaderTheme = "system" | "dark" | "light" | "rose";
@@ -442,6 +447,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                     <SidebarGroup
                                         label="Wallets"
                                         links={walletLinks}
+                                        pathname={pathname}
+                                    />
+
+                                    <SidebarGroup
+                                        label="Trade Broker"
+                                        links={tradeBrokerLinks}
                                         pathname={pathname}
                                     />
                                 </nav>

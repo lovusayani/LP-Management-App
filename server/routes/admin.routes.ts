@@ -41,6 +41,14 @@ import {
   setApiSourceUsers,
   updateApiSource,
 } from "../controllers/apiSource.controller";
+import {
+  backfillCharges,
+  deleteSymbolCharge,
+  listChargeSettings,
+  listOrderCharges,
+  setGlobalCharge,
+  setSymbolCharge,
+} from "../controllers/chargeSetting.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
 import { pdfUpload, pngUpload, imageUpload } from "../middlewares/upload.middleware";
@@ -256,5 +264,27 @@ router.put(
   validateRequest,
   setApiSourceUsers
 );
+
+router.get("/charge-settings", listChargeSettings);
+router.put(
+  "/charge-settings/global",
+  [body("chargePerStandardLot").isFloat({ min: 0 })],
+  validateRequest,
+  setGlobalCharge
+);
+router.put(
+  "/charge-settings/symbol/:symbol",
+  [param("symbol").isString().trim().isLength({ min: 1, max: 20 }), body("chargePerStandardLot").isFloat({ min: 0 })],
+  validateRequest,
+  setSymbolCharge
+);
+router.delete(
+  "/charge-settings/symbol/:symbol",
+  [param("symbol").isString().trim().isLength({ min: 1, max: 20 })],
+  validateRequest,
+  deleteSymbolCharge
+);
+router.post("/charge-settings/backfill", backfillCharges);
+router.get("/order-charges", listOrderCharges);
 
 export default router;

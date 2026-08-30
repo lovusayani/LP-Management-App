@@ -542,3 +542,68 @@ export const deleteAdminApiSource = async (id: string): Promise<void> => {
 export const setAdminApiSourceUsers = async (id: string, userIds: string[]): Promise<ApiSourceRecord> => {
   return apiFetch<ApiSourceRecord>(`/admin/api-sources/${id}/users`, { method: "PUT", body: { userIds } });
 };
+
+export interface SymbolCharge {
+  symbol: string;
+  chargePerStandardLot: number;
+}
+
+export interface ChargeSettings {
+  global: number;
+  symbols: SymbolCharge[];
+}
+
+export const getAdminChargeSettings = async (): Promise<ChargeSettings> => {
+  return apiFetch<ChargeSettings>("/admin/charge-settings", { method: "GET" });
+};
+
+export const setAdminGlobalCharge = async (chargePerStandardLot: number): Promise<void> => {
+  await apiFetch<{ global: number }>("/admin/charge-settings/global", {
+    method: "PUT",
+    body: { chargePerStandardLot },
+  });
+};
+
+export const setAdminSymbolCharge = async (symbol: string, chargePerStandardLot: number): Promise<void> => {
+  await apiFetch<SymbolCharge>(`/admin/charge-settings/symbol/${encodeURIComponent(symbol)}`, {
+    method: "PUT",
+    body: { chargePerStandardLot },
+  });
+};
+
+export const deleteAdminSymbolCharge = async (symbol: string): Promise<void> => {
+  await apiFetch<{ message: string }>(`/admin/charge-settings/symbol/${encodeURIComponent(symbol)}`, {
+    method: "DELETE",
+  });
+};
+
+export const backfillAdminCharges = async (): Promise<{ processed: number; sources: number }> => {
+  return apiFetch<{ processed: number; sources: number }>("/admin/charge-settings/backfill", { method: "POST" });
+};
+
+export interface OrderChargeRecord {
+  id: string;
+  tradeId: string;
+  source: string;
+  account: string;
+  symbol: string;
+  position: "Buy" | "Sell";
+  lotSize: number;
+  chargePerStandardLot: number;
+  chargeAmount: number;
+  orderDate: string;
+  openDatetime: string;
+}
+
+export interface OrderChargesPage {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  totalCharge: number;
+  records: OrderChargeRecord[];
+}
+
+export const getAdminOrderCharges = async (page = 1, limit = 20): Promise<OrderChargesPage> => {
+  return apiFetch<OrderChargesPage>(`/admin/order-charges?page=${page}&limit=${limit}`, { method: "GET" });
+};

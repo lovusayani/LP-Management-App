@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { getTrades } from "../controllers/trades.controller";
+import { getChargeSummary, getTrades, getWalletOverview } from "../controllers/trades.controller";
 import { protect } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -8,5 +8,7 @@ const router = Router();
 router.use(protect);
 
 router.get("/", getTrades);
+router.get("/charges/summary", getChargeSummary);
+router.get("/wallet-overview", getWalletOverview);
 
 export default router;
