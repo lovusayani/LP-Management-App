@@ -1,6 +1,5 @@
 import { Request, Response } from "express";
 
-import { TradeLog } from "../models/TradeLog";
 import { TradeWallet } from "../models/TradeWallet";
 import { WalletTransfer, WalletTransferDirection } from "../models/WalletTransfer";
 import { asyncHandler } from "../utils/asyncHandler";
@@ -13,29 +12,6 @@ const ensureTradeWallet = async (userId: string) => {
   return tradeWallet;
 };
 
-const syncTradeWalletWithLatestTrade = async (userId: string, tradeWallet: { balance: number; save: () => Promise<unknown> }) => {
-  const latestTrade = await TradeLog.findOne({ lpUser: userId })
-    .sort({ createdAt: -1 })
-    .select("currTradeBal")
-    .lean();
-
-  if (!latestTrade) {
-    return tradeWallet;
-  }
-
-  const latestBalance = Number(latestTrade.currTradeBal || 0);
-  if (!Number.isFinite(latestBalance)) {
-    return tradeWallet;
-  }
-
-  if (Number(tradeWallet.balance || 0) !== latestBalance) {
-    tradeWallet.balance = latestBalance;
-    await tradeWallet.save();
-  }
-
-  return tradeWallet;
-};
-
 export const getWalletBalances = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     res.status(401);
@@ -43,7 +19,6 @@ export const getWalletBalances = asyncHandler(async (req: Request, res: Response
   }
 
   const tradeWallet = await ensureTradeWallet(String(req.user._id));
-  await syncTradeWalletWithLatestTrade(String(req.user._id), tradeWallet);
 
   return res.json({
     balances: {
@@ -74,7 +49,6 @@ export const swapWalletBalance = asyncHandler(async (req: Request, res: Response
   }
 
   const tradeWallet = await ensureTradeWallet(String(req.user._id));
-  await syncTradeWalletWithLatestTrade(String(req.user._id), tradeWallet);
 
   const currentMain = req.user.mainWalletBalance ?? 0;
   const currentTrade = tradeWallet.balance ?? 0;

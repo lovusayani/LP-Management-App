@@ -44,10 +44,14 @@ import {
 import {
   backfillCharges,
   deleteSymbolCharge,
+  deleteUserGlobalCharge,
+  deleteUserSymbolCharge,
   listChargeSettings,
   listOrderCharges,
   setGlobalCharge,
   setSymbolCharge,
+  setUserGlobalCharge,
+  setUserSymbolCharge,
 } from "../controllers/chargeSetting.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
@@ -283,6 +287,34 @@ router.delete(
   [param("symbol").isString().trim().isLength({ min: 1, max: 20 })],
   validateRequest,
   deleteSymbolCharge
+);
+router.put(
+  "/charge-settings/user/:userId/global",
+  [param("userId").isMongoId(), body("chargePerStandardLot").isFloat({ min: 0 })],
+  validateRequest,
+  setUserGlobalCharge
+);
+router.put(
+  "/charge-settings/user/:userId/symbol/:symbol",
+  [
+    param("userId").isMongoId(),
+    param("symbol").isString().trim().isLength({ min: 1, max: 20 }),
+    body("chargePerStandardLot").isFloat({ min: 0 }),
+  ],
+  validateRequest,
+  setUserSymbolCharge
+);
+router.delete(
+  "/charge-settings/user/:userId/global",
+  [param("userId").isMongoId()],
+  validateRequest,
+  deleteUserGlobalCharge
+);
+router.delete(
+  "/charge-settings/user/:userId/symbol/:symbol",
+  [param("userId").isMongoId(), param("symbol").isString().trim().isLength({ min: 1, max: 20 })],
+  validateRequest,
+  deleteUserSymbolCharge
 );
 router.post("/charge-settings/backfill", backfillCharges);
 router.get("/order-charges", listOrderCharges);

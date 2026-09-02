@@ -41,16 +41,49 @@ export const listOrderCharges = asyncHandler(async (req: Request, res: Response)
 });
 
 export const listChargeSettings = asyncHandler(async (_req: Request, res: Response) => {
-  const settings = await ChargeSetting.find().sort({ symbol: 1 }).lean();
+  const settings = await ChargeSetting.find()
+    .populate("user", "fullName email")
+    .sort({ symbol: 1 })
+    .lean();
 
-  const global = settings.find((s) => s.symbol === GLOBAL_CHARGE_SYMBOL);
-  const symbols = settings
+  const allUserRows = settings.filter((s) => !s.user);
+  const global = allUserRows.find((s) => s.symbol === GLOBAL_CHARGE_SYMBOL);
+  const symbols = allUserRows
     .filter((s) => s.symbol !== GLOBAL_CHARGE_SYMBOL)
     .map((s) => ({ symbol: s.symbol, chargePerStandardLot: s.chargePerStandardLot }));
+
+  const userRows = settings.filter((s) => s.user) as Array<
+    typeof settings[number] & { user: { _id: unknown; fullName: string; email: string } }
+  >;
+
+  const byUser = new Map<
+    string,
+    { userId: string; fullName: string; email: string; global: number | null; symbols: { symbol: string; chargePerStandardLot: number }[] }
+  >();
+
+  userRows.forEach((row) => {
+    const userId = String(row.user._id);
+    if (!byUser.has(userId)) {
+      byUser.set(userId, {
+        userId,
+        fullName: row.user.fullName,
+        email: row.user.email,
+        global: null,
+        symbols: [],
+      });
+    }
+    const entry = byUser.get(userId)!;
+    if (row.symbol === GLOBAL_CHARGE_SYMBOL) {
+      entry.global = row.chargePerStandardLot;
+    } else {
+      entry.symbols.push({ symbol: row.symbol, chargePerStandardLot: row.chargePerStandardLot });
+    }
+  });
 
   return res.json({
     global: global?.chargePerStandardLot ?? 0,
     symbols,
+    userOverrides: Array.from(byUser.values()),
   });
 });
 
@@ -58,8 +91,8 @@ export const setGlobalCharge = asyncHandler(async (req: Request, res: Response) 
   const { chargePerStandardLot } = req.body as { chargePerStandardLot: number };
 
   await ChargeSetting.findOneAndUpdate(
-    { symbol: GLOBAL_CHARGE_SYMBOL },
-    { symbol: GLOBAL_CHARGE_SYMBOL, chargePerStandardLot },
+    { user: null, symbol: GLOBAL_CHARGE_SYMBOL },
+    { user: null, symbol: GLOBAL_CHARGE_SYMBOL, chargePerStandardLot },
     { upsert: true }
   );
 
@@ -76,8 +109,8 @@ export const setSymbolCharge = asyncHandler(async (req: Request, res: Response) 
   }
 
   await ChargeSetting.findOneAndUpdate(
-    { symbol },
-    { symbol, chargePerStandardLot },
+    { user: null, symbol },
+    { user: null, symbol, chargePerStandardLot },
     { upsert: true }
   );
 
@@ -92,8 +125,53 @@ export const deleteSymbolCharge = asyncHandler(async (req: Request, res: Respons
     throw new Error("The global charge cannot be deleted.");
   }
 
-  await ChargeSetting.deleteOne({ symbol });
+  await ChargeSetting.deleteOne({ user: null, symbol });
   return res.json({ message: "Symbol charge removed" });
+});
+
+export const setUserGlobalCharge = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const { chargePerStandardLot } = req.body as { chargePerStandardLot: number };
+
+  await ChargeSetting.findOneAndUpdate(
+    { user: userId, symbol: GLOBAL_CHARGE_SYMBOL },
+    { user: userId, symbol: GLOBAL_CHARGE_SYMBOL, chargePerStandardLot },
+    { upsert: true }
+  );
+
+  return res.json({ userId, chargePerStandardLot });
+});
+
+export const setUserSymbolCharge = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const symbol = String(req.params.symbol).toUpperCase().trim();
+  const { chargePerStandardLot } = req.body as { chargePerStandardLot: number };
+
+  if (symbol === GLOBAL_CHARGE_SYMBOL) {
+    res.status(400);
+    throw new Error(`"${GLOBAL_CHARGE_SYMBOL}" is reserved; use the user global charge endpoint instead.`);
+  }
+
+  await ChargeSetting.findOneAndUpdate(
+    { user: userId, symbol },
+    { user: userId, symbol, chargePerStandardLot },
+    { upsert: true }
+  );
+
+  return res.json({ userId, symbol, chargePerStandardLot });
+});
+
+export const deleteUserGlobalCharge = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  await ChargeSetting.deleteOne({ user: userId, symbol: GLOBAL_CHARGE_SYMBOL });
+  return res.json({ message: "User charge removed" });
+});
+
+export const deleteUserSymbolCharge = asyncHandler(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const symbol = String(req.params.symbol).toUpperCase().trim();
+  await ChargeSetting.deleteOne({ user: userId, symbol });
+  return res.json({ message: "User charge removed" });
 });
 
 const PAGE_SIZE = 500;
@@ -104,8 +182,10 @@ const fetchAllTradesForSource = async (source: {
   baseUrl: string;
   apiKey: string;
   authHeader: "x-api-key" | "bearer";
-}): Promise<(ExternalTrade & { source: string })[]> => {
-  const all: (ExternalTrade & { source: string })[] = [];
+  assignedUsers: unknown[];
+}): Promise<(ExternalTrade & { source: string; ownerUserId?: string })[]> => {
+  const all: (ExternalTrade & { source: string; ownerUserId?: string })[] = [];
+  const ownerUserId = source.assignedUsers.length === 1 ? String(source.assignedUsers[0]) : undefined;
   let offset = 0;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -114,7 +194,7 @@ const fetchAllTradesForSource = async (source: {
       { status: "all", days: 90, limit: PAGE_SIZE, offset }
     );
 
-    all.push(...response.data.map((trade) => ({ ...trade, source: source.name })));
+    all.push(...response.data.map((trade) => ({ ...trade, source: source.name, ownerUserId })));
 
     offset += PAGE_SIZE;
     if (offset >= response.total || response.data.length === 0) {
@@ -134,7 +214,7 @@ export const backfillCharges = asyncHandler(async (_req: Request, res: Response)
 
   const results = await Promise.allSettled(sources.map((source) => fetchAllTradesForSource(source)));
 
-  const trades: (ExternalTrade & { source: string })[] = [];
+  const trades: (ExternalTrade & { source: string; ownerUserId?: string })[] = [];
   results.forEach((result) => {
     if (result.status === "fulfilled") {
       trades.push(...result.value);

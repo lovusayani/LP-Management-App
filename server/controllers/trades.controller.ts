@@ -36,12 +36,13 @@ export const getTrades = asyncHandler(async (req: Request, res: Response) => {
     )
   );
 
-  const merged: (ExternalTrade & { source: string })[] = [];
+  const merged: (ExternalTrade & { source: string; ownerUserId?: string })[] = [];
   let total = 0;
 
   results.forEach((result, i) => {
     if (result.status === "fulfilled") {
-      merged.push(...result.value.data.map((trade) => ({ ...trade, source: sources[i].name })));
+      const ownerUserId = sources[i].assignedUsers.length === 1 ? String(sources[i].assignedUsers[0]) : undefined;
+      merged.push(...result.value.data.map((trade) => ({ ...trade, source: sources[i].name, ownerUserId })));
       total += result.value.total;
     } else {
       console.warn(`API source "${sources[i].name}" failed:`, result.reason);

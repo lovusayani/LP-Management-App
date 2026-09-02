@@ -2,17 +2,43 @@ import { ChargeSetting, GLOBAL_CHARGE_SYMBOL } from "../models/ChargeSetting";
 import { OrderCharge } from "../models/OrderCharge";
 import { ExternalTrade } from "./apiSource.service";
 
-type ChargeableTrade = ExternalTrade & { source: string };
+// ownerUserId: the single app user this order's source belongs to, when
+// unambiguous (a source assigned to exactly one user). Used to resolve
+// user-specific rate overrides; omitted when a source is shared by
+// multiple users, since there's no single owner to attribute the order to.
+type ChargeableTrade = ExternalTrade & { source: string; ownerUserId?: string };
 
 const buildRateLookup = async () => {
   const settings = await ChargeSetting.find().lean();
-  const globalSetting = settings.find((s) => s.symbol === GLOBAL_CHARGE_SYMBOL);
-  const symbolRates = new Map(
-    settings.filter((s) => s.symbol !== GLOBAL_CHARGE_SYMBOL).map((s) => [s.symbol, s.chargePerStandardLot])
-  );
-  const globalRate = globalSetting?.chargePerStandardLot ?? 0;
 
-  return (symbol: string) => symbolRates.get(symbol.toUpperCase()) ?? globalRate;
+  const globalRate =
+    settings.find((s) => !s.user && s.symbol === GLOBAL_CHARGE_SYMBOL)?.chargePerStandardLot ?? 0;
+
+  const symbolRates = new Map(
+    settings.filter((s) => !s.user && s.symbol !== GLOBAL_CHARGE_SYMBOL).map((s) => [s.symbol, s.chargePerStandardLot])
+  );
+
+  const userGlobalRates = new Map(
+    settings.filter((s) => s.user && s.symbol === GLOBAL_CHARGE_SYMBOL).map((s) => [String(s.user), s.chargePerStandardLot])
+  );
+
+  const userSymbolRates = new Map(
+    settings
+      .filter((s) => s.user && s.symbol !== GLOBAL_CHARGE_SYMBOL)
+      .map((s) => [`${s.user}:${s.symbol}`, s.chargePerStandardLot])
+  );
+
+  return (symbol: string, ownerUserId?: string) => {
+    const upperSymbol = symbol.toUpperCase();
+
+    if (ownerUserId) {
+      const userSymbolKey = `${ownerUserId}:${upperSymbol}`;
+      if (userSymbolRates.has(userSymbolKey)) return userSymbolRates.get(userSymbolKey) as number;
+      if (userGlobalRates.has(ownerUserId)) return userGlobalRates.get(ownerUserId) as number;
+    }
+
+    return symbolRates.get(upperSymbol) ?? globalRate;
+  };
 };
 
 const toChargeDoc = (trade: ChargeableTrade, rate: number) => {
@@ -50,7 +76,7 @@ export const recordOrderCharges = async (trades: ChargeableTrade[]): Promise<voi
     chargeable.map((trade) =>
       OrderCharge.updateOne(
         { tradeId: trade.trade_id },
-        { $setOnInsert: toChargeDoc(trade, getRate(trade.symbol)) },
+        { $setOnInsert: toChargeDoc(trade, getRate(trade.symbol, trade.ownerUserId)) },
         { upsert: true }
       )
     )
@@ -74,7 +100,7 @@ export const backfillOrderCharges = async (trades: ChargeableTrade[]): Promise<n
     chargeable.map((trade) =>
       OrderCharge.findOneAndUpdate(
         { tradeId: trade.trade_id },
-        toChargeDoc(trade, getRate(trade.symbol)),
+        toChargeDoc(trade, getRate(trade.symbol, trade.ownerUserId)),
         { upsert: true }
       )
     )

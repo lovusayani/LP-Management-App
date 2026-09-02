@@ -41,10 +41,11 @@ export const runDailyChargeJob = async (): Promise<void> => {
     )
   );
 
-  const trades: (ExternalTrade & { source: string })[] = [];
+  const trades: (ExternalTrade & { source: string; ownerUserId?: string })[] = [];
   results.forEach((result, i) => {
     if (result.status === "fulfilled") {
-      trades.push(...result.value.data.map((trade) => ({ ...trade, source: sources[i].name })));
+      const ownerUserId = sources[i].assignedUsers.length === 1 ? String(sources[i].assignedUsers[0]) : undefined;
+      trades.push(...result.value.data.map((trade) => ({ ...trade, source: sources[i].name, ownerUserId })));
     } else {
       console.warn(`Daily charge job: source "${sources[i].name}" failed:`, result.reason);
     }

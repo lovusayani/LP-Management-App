@@ -10,6 +10,7 @@ import { connectDB } from "./config/db";
 import { env, validateEnv } from "./config/env";
 import { errorHandler, notFound } from "./middlewares/error.middleware";
 import { ApiSource } from "./models/ApiSource";
+import { ChargeSetting } from "./models/ChargeSetting";
 import { User } from "./models/User";
 import routes from "./routes";
 import { scheduleDailyChargeJob } from "./services/dailyCharge.service";
@@ -85,12 +86,23 @@ const ensureDefaultApiSource = async (): Promise<void> => {
   console.log("Default Suimfx API source created");
 };
 
+const migrateChargeSettingIndexes = async (): Promise<void> => {
+  try {
+    await ChargeSetting.collection.dropIndex("symbol_1");
+    console.log("Dropped stale ChargeSetting symbol_1 index");
+  } catch {
+    // Index doesn't exist — already migrated or fresh install.
+  }
+  await ChargeSetting.syncIndexes();
+};
+
 const bootstrap = async () => {
   validateEnv();
   await connectDB();
   await ensureAdmin();
   await ensureDemoLp();
   await ensureDefaultApiSource();
+  await migrateChargeSettingIndexes();
   scheduleDailyChargeJob();
 
   const app = express();

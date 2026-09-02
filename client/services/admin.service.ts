@@ -548,9 +548,18 @@ export interface SymbolCharge {
   chargePerStandardLot: number;
 }
 
+export interface UserChargeOverride {
+  userId: string;
+  fullName: string;
+  email: string;
+  global: number | null;
+  symbols: SymbolCharge[];
+}
+
 export interface ChargeSettings {
   global: number;
   symbols: SymbolCharge[];
+  userOverrides: UserChargeOverride[];
 }
 
 export const getAdminChargeSettings = async (): Promise<ChargeSettings> => {
@@ -579,6 +588,34 @@ export const deleteAdminSymbolCharge = async (symbol: string): Promise<void> => 
 
 export const backfillAdminCharges = async (): Promise<{ processed: number; sources: number }> => {
   return apiFetch<{ processed: number; sources: number }>("/admin/charge-settings/backfill", { method: "POST" });
+};
+
+export const setAdminUserGlobalCharge = async (userId: string, chargePerStandardLot: number): Promise<void> => {
+  await apiFetch<{ userId: string; chargePerStandardLot: number }>(`/admin/charge-settings/user/${userId}/global`, {
+    method: "PUT",
+    body: { chargePerStandardLot },
+  });
+};
+
+export const setAdminUserSymbolCharge = async (
+  userId: string,
+  symbol: string,
+  chargePerStandardLot: number
+): Promise<void> => {
+  await apiFetch<{ userId: string; symbol: string; chargePerStandardLot: number }>(
+    `/admin/charge-settings/user/${userId}/symbol/${encodeURIComponent(symbol)}`,
+    { method: "PUT", body: { chargePerStandardLot } }
+  );
+};
+
+export const deleteAdminUserGlobalCharge = async (userId: string): Promise<void> => {
+  await apiFetch<{ message: string }>(`/admin/charge-settings/user/${userId}/global`, { method: "DELETE" });
+};
+
+export const deleteAdminUserSymbolCharge = async (userId: string, symbol: string): Promise<void> => {
+  await apiFetch<{ message: string }>(`/admin/charge-settings/user/${userId}/symbol/${encodeURIComponent(symbol)}`, {
+    method: "DELETE",
+  });
 };
 
 export interface OrderChargeRecord {

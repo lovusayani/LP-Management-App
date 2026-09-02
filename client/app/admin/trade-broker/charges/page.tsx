@@ -4,13 +4,21 @@ import { useEffect, useState } from "react";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 
 import {
+    AdminLpUser,
     backfillAdminCharges,
     ChargeSettings,
     deleteAdminSymbolCharge,
+    deleteAdminUserGlobalCharge,
+    deleteAdminUserSymbolCharge,
     getAdminChargeSettings,
+    getAllLpUsers,
     setAdminGlobalCharge,
     setAdminSymbolCharge,
+    setAdminUserGlobalCharge,
+    setAdminUserSymbolCharge,
 } from "@/services/admin.service";
+
+const SHOW_SYMBOL_OVERRIDES = false;
 
 const LOT_CLASSES = [
     { size: "1.00", label: "Standard" },
@@ -20,7 +28,8 @@ const LOT_CLASSES = [
 ];
 
 export default function AdminTradeBrokerChargesPage() {
-    const [settings, setSettings] = useState<ChargeSettings>({ global: 0, symbols: [] });
+    const [settings, setSettings] = useState<ChargeSettings>({ global: 0, symbols: [], userOverrides: [] });
+    const [lpUsers, setLpUsers] = useState<AdminLpUser[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
@@ -35,13 +44,21 @@ export default function AdminTradeBrokerChargesPage() {
     const [backfilling, setBackfilling] = useState(false);
     const [backfillMessage, setBackfillMessage] = useState("");
 
+    const [userTargetId, setUserTargetId] = useState("");
+    const [userScope, setUserScope] = useState<"all" | "symbol">("all");
+    const [userSymbol, setUserSymbol] = useState("");
+    const [userRate, setUserRate] = useState("");
+    const [savingUserRate, setSavingUserRate] = useState(false);
+    const [busyUserKey, setBusyUserKey] = useState<string | null>(null);
+
     const load = async () => {
         setLoading(true);
         setError("");
         try {
-            const data = await getAdminChargeSettings();
+            const [data, users] = await Promise.all([getAdminChargeSettings(), getAllLpUsers()]);
             setSettings(data);
             setGlobalInput(String(data.global));
+            setLpUsers(users);
         } catch {
             setError("Failed to load charge settings.");
         } finally {
@@ -114,6 +131,76 @@ export default function AdminTradeBrokerChargesPage() {
         }
     };
 
+    const onSaveUserRate = async () => {
+        setError("");
+        if (!userTargetId) {
+            setError("Select a user.");
+            return;
+        }
+        const rate = Number(userRate);
+        if (!Number.isFinite(rate) || rate < 0) {
+            setError("Enter a valid charge amount.");
+            return;
+        }
+        const symbol = userScope === "symbol" ? userSymbol.trim().toUpperCase() : "";
+        if (userScope === "symbol" && !symbol) {
+            setError("Enter a symbol, e.g. EURUSD.");
+            return;
+        }
+
+        setSavingUserRate(true);
+        try {
+            if (userScope === "all") {
+                await setAdminUserGlobalCharge(userTargetId, rate);
+            } else {
+                await setAdminUserSymbolCharge(userTargetId, symbol, rate);
+            }
+            await load();
+            setUserRate("");
+            setUserSymbol("");
+        } catch {
+            setError("Failed to save user charge.");
+        } finally {
+            setSavingUserRate(false);
+        }
+    };
+
+    const onDeleteUserGlobal = async (userId: string) => {
+        setBusyUserKey(`${userId}:all`);
+        setError("");
+        try {
+            await deleteAdminUserGlobalCharge(userId);
+            setSettings((prev) => ({
+                ...prev,
+                userOverrides: prev.userOverrides
+                    .map((u) => (u.userId === userId ? { ...u, global: null } : u))
+                    .filter((u) => u.global !== null || u.symbols.length > 0),
+            }));
+        } catch {
+            setError("Failed to remove user charge.");
+        } finally {
+            setBusyUserKey(null);
+        }
+    };
+
+    const onDeleteUserSymbol = async (userId: string, symbol: string) => {
+        setBusyUserKey(`${userId}:${symbol}`);
+        setError("");
+        try {
+            await deleteAdminUserSymbolCharge(userId, symbol);
+            setSettings((prev) => ({
+                ...prev,
+                userOverrides: prev.userOverrides
+                    .map((u) => (u.userId === userId ? { ...u, symbols: u.symbols.filter((s) => s.symbol !== symbol) } : u))
+                    .filter((u) => u.global !== null || u.symbols.length > 0),
+            }));
+        } catch {
+            setError("Failed to remove user charge.");
+        } finally {
+            setBusyUserKey(null);
+        }
+    };
+
     const onBackfill = async () => {
         if (!window.confirm("Recompute charges for every existing order using the current rates? This overwrites previously stored charges.")) return;
         setBackfilling(true);
@@ -134,8 +221,10 @@ export default function AdminTradeBrokerChargesPage() {
             <div>
                 <h1 className="text-2xl font-semibold">Trade Broker · Charges</h1>
                 <p className="mt-1 text-sm text-zinc-400">
-                    Set a charge per standard lot — globally, or overridden per symbol. Each order&apos;s charge is
-                    computed as <span className="font-mono text-zinc-300">lot size × charge per standard lot</span>.
+                    Set a charge per standard lot — globally, per symbol (all users), or for one specific user
+                    (all symbols, or a symbol just for them). Each order&apos;s charge is computed as{" "}
+                    <span className="font-mono text-zinc-300">lot size × charge per standard lot</span>, using the
+                    most specific rate that applies: user + symbol &gt; user (all symbols) &gt; symbol (all users) &gt; global.
                 </p>
             </div>
 
@@ -180,6 +269,7 @@ export default function AdminTradeBrokerChargesPage() {
                         <p className="mt-2 text-xs text-zinc-500">Used for any symbol without its own override below.</p>
                     </div>
 
+                    {SHOW_SYMBOL_OVERRIDES && (
                     <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
                         <p className="text-sm font-semibold text-zinc-100">Symbol Overrides</p>
 
@@ -234,6 +324,122 @@ export default function AdminTradeBrokerChargesPage() {
                             >
                                 <Plus className="h-3.5 w-3.5" />
                                 {addingSymbol ? "Adding..." : "Add Override"}
+                            </button>
+                        </div>
+                    </div>
+                    )}
+
+                    <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+                        <div>
+                            <p className="text-sm font-semibold text-zinc-100">User-Specific Charges</p>
+                            <p className="mt-1 text-xs text-zinc-500">
+                                Give one LP user their own rate — applied to all symbols, or just one symbol for them.
+                            </p>
+                        </div>
+
+                        {settings.userOverrides.length === 0 ? (
+                            <p className="text-sm text-zinc-400">No per-user charges set yet.</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {settings.userOverrides.map((u) => (
+                                    <div key={u.userId} className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
+                                        <p className="text-sm font-medium text-zinc-100">{u.fullName}</p>
+                                        <p className="text-xs text-zinc-500">{u.email}</p>
+
+                                        <div className="mt-2 space-y-1.5">
+                                            {u.global !== null && (
+                                                <div className="flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-950/60 px-3 py-1.5">
+                                                    <span className="text-xs text-zinc-300">All Symbols</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-sm text-zinc-200">{u.global.toFixed(2)} / lot</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onDeleteUserGlobal(u.userId)}
+                                                            disabled={busyUserKey === `${u.userId}:all`}
+                                                            className="inline-grid h-6 w-6 place-items-center rounded-md border border-red-800 text-red-400 hover:bg-red-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Remove"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {u.symbols.map((s) => (
+                                                <div
+                                                    key={s.symbol}
+                                                    className="flex items-center justify-between gap-3 rounded-md border border-zinc-800 bg-zinc-950/60 px-3 py-1.5"
+                                                >
+                                                    <span className="text-xs text-zinc-300">{s.symbol}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-sm text-zinc-200">{s.chargePerStandardLot.toFixed(2)} / lot</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => onDeleteUserSymbol(u.userId, s.symbol)}
+                                                            disabled={busyUserKey === `${u.userId}:${s.symbol}`}
+                                                            className="inline-grid h-6 w-6 place-items-center rounded-md border border-red-800 text-red-400 hover:bg-red-900/30 disabled:cursor-not-allowed disabled:opacity-40"
+                                                            title="Remove"
+                                                        >
+                                                            <Trash2 className="h-3 w-3" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-3">
+                            <select
+                                value={userTargetId}
+                                onChange={(e) => setUserTargetId(e.target.value)}
+                                className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+                            >
+                                <option value="">Select user...</option>
+                                {lpUsers.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.fullName} ({u.email})
+                                    </option>
+                                ))}
+                            </select>
+
+                            <select
+                                value={userScope}
+                                onChange={(e) => setUserScope(e.target.value as "all" | "symbol")}
+                                className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100"
+                            >
+                                <option value="all">All Symbols</option>
+                                <option value="symbol">Specific Symbol</option>
+                            </select>
+
+                            {userScope === "symbol" && (
+                                <input
+                                    value={userSymbol}
+                                    onChange={(e) => setUserSymbol(e.target.value)}
+                                    placeholder="Symbol, e.g. EURUSD"
+                                    className="w-36 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm uppercase text-zinc-100 outline-none focus:border-violet-500/60"
+                                />
+                            )}
+
+                            <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={userRate}
+                                onChange={(e) => setUserRate(e.target.value)}
+                                placeholder="Charge / lot"
+                                className="w-32 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-violet-500/60"
+                            />
+
+                            <button
+                                type="button"
+                                onClick={onSaveUserRate}
+                                disabled={savingUserRate}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/40 bg-violet-600/20 px-3 py-2 text-sm font-medium text-violet-200 hover:bg-violet-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                {savingUserRate ? "Saving..." : "Set User Charge"}
                             </button>
                         </div>
                     </div>
