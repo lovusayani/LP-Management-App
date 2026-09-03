@@ -40,6 +40,19 @@ export const listOrderCharges = asyncHandler(async (req: Request, res: Response)
   });
 });
 
+export const deleteOrderCharges = asyncHandler(async (req: Request, res: Response) => {
+  const { from, to } = req.body as { from: string; to?: string };
+
+  const query: { orderDate: { $gte: string; $lte?: string } } = { orderDate: { $gte: from } };
+  if (to) {
+    query.orderDate.$lte = to;
+  }
+
+  const result = await OrderCharge.deleteMany(query);
+
+  return res.json({ deletedCount: result.deletedCount || 0 });
+});
+
 export const listChargeSettings = asyncHandler(async (_req: Request, res: Response) => {
   const settings = await ChargeSetting.find()
     .populate("user", "fullName email")

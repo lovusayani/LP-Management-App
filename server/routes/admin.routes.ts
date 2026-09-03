@@ -43,6 +43,7 @@ import {
 } from "../controllers/apiSource.controller";
 import {
   backfillCharges,
+  deleteOrderCharges,
   deleteSymbolCharge,
   deleteUserGlobalCharge,
   deleteUserSymbolCharge,
@@ -318,5 +319,14 @@ router.delete(
 );
 router.post("/charge-settings/backfill", backfillCharges);
 router.get("/order-charges", listOrderCharges);
+router.delete(
+  "/order-charges",
+  [
+    body("from").matches(/^\d{4}-\d{2}-\d{2}$/),
+    body("to").optional().matches(/^\d{4}-\d{2}-\d{2}$/),
+  ],
+  validateRequest,
+  deleteOrderCharges
+);
 
 export default router;

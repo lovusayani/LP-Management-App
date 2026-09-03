@@ -590,6 +590,13 @@ export const backfillAdminCharges = async (): Promise<{ processed: number; sourc
   return apiFetch<{ processed: number; sources: number }>("/admin/charge-settings/backfill", { method: "POST" });
 };
 
+export const deleteAdminOrderCharges = async (from: string, to?: string): Promise<{ deletedCount: number }> => {
+  return apiFetch<{ deletedCount: number }>("/admin/order-charges", {
+    method: "DELETE",
+    body: { from, to: to || undefined },
+  });
+};
+
 export const setAdminUserGlobalCharge = async (userId: string, chargePerStandardLot: number): Promise<void> => {
   await apiFetch<{ userId: string; chargePerStandardLot: number }>(`/admin/charge-settings/user/${userId}/global`, {
     method: "PUT",

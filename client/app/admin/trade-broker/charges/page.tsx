@@ -7,6 +7,7 @@ import {
     AdminLpUser,
     backfillAdminCharges,
     ChargeSettings,
+    deleteAdminOrderCharges,
     deleteAdminSymbolCharge,
     deleteAdminUserGlobalCharge,
     deleteAdminUserSymbolCharge,
@@ -43,6 +44,11 @@ export default function AdminTradeBrokerChargesPage() {
 
     const [backfilling, setBackfilling] = useState(false);
     const [backfillMessage, setBackfillMessage] = useState("");
+
+    const [deleteFrom, setDeleteFrom] = useState("");
+    const [deleteTo, setDeleteTo] = useState("");
+    const [deleting, setDeleting] = useState(false);
+    const [deleteMessage, setDeleteMessage] = useState("");
 
     const [userTargetId, setUserTargetId] = useState("");
     const [userScope, setUserScope] = useState<"all" | "symbol">("all");
@@ -213,6 +219,38 @@ export default function AdminTradeBrokerChargesPage() {
             setError("Backfill failed.");
         } finally {
             setBackfilling(false);
+        }
+    };
+
+    const onDeleteData = async () => {
+        setError("");
+        setDeleteMessage("");
+        if (!deleteFrom) {
+            setError("Select a from date.");
+            return;
+        }
+        if (deleteTo && deleteTo < deleteFrom) {
+            setError("To date must be on or after the from date.");
+            return;
+        }
+
+        const rangeText = deleteTo ? `from ${deleteFrom} to ${deleteTo}` : `from ${deleteFrom} onwards`;
+        if (
+            !window.confirm(
+                `Permanently delete all Trade Broker data (fetched orders, report rows, and their charges) ${rangeText}? This cannot be undone.`
+            )
+        ) {
+            return;
+        }
+
+        setDeleting(true);
+        try {
+            const result = await deleteAdminOrderCharges(deleteFrom, deleteTo || undefined);
+            setDeleteMessage(`Deleted ${result.deletedCount} order(s) ${rangeText}.`);
+        } catch {
+            setError("Failed to delete data.");
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -460,6 +498,45 @@ export default function AdminTradeBrokerChargesPage() {
                             {backfilling ? "Recalculating..." : "Run Backfill Now"}
                         </button>
                         {backfillMessage && <p className="mt-2 text-sm text-emerald-400">{backfillMessage}</p>}
+                    </div>
+
+                    <div className="rounded-xl border border-red-900/50 bg-red-950/10 p-4">
+                        <p className="text-sm font-semibold text-red-300">Delete Trade Broker Data</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                            Permanently removes fetched order data, Report rows, and their calculated charges for the
+                            selected date range. Pick a From date only to delete everything from that date onwards.
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap items-end gap-2">
+                            <label className="grid gap-1 text-xs text-zinc-400">
+                                From
+                                <input
+                                    type="date"
+                                    value={deleteFrom}
+                                    onChange={(e) => setDeleteFrom(e.target.value)}
+                                    className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-red-500/60"
+                                />
+                            </label>
+                            <label className="grid gap-1 text-xs text-zinc-400">
+                                To (optional)
+                                <input
+                                    type="date"
+                                    value={deleteTo}
+                                    onChange={(e) => setDeleteTo(e.target.value)}
+                                    className="rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-red-500/60"
+                                />
+                            </label>
+                            <button
+                                type="button"
+                                onClick={onDeleteData}
+                                disabled={deleting}
+                                className="inline-flex items-center gap-1.5 rounded-md border border-red-700 bg-red-900/30 px-4 py-2 text-sm font-medium text-red-300 hover:bg-red-900/50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                {deleting ? "Deleting..." : "Delete Data"}
+                            </button>
+                        </div>
+                        {deleteMessage && <p className="mt-2 text-sm text-emerald-400">{deleteMessage}</p>}
                     </div>
                 </>
             )}
