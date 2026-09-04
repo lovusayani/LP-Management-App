@@ -54,6 +54,7 @@ import {
   setUserGlobalCharge,
   setUserSymbolCharge,
 } from "../controllers/chargeSetting.controller";
+import { exportData, listDataTables, resetData } from "../controllers/dataManagement.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
 import { pdfUpload, pngUpload, imageUpload } from "../middlewares/upload.middleware";
@@ -327,6 +328,19 @@ router.delete(
   ],
   validateRequest,
   deleteOrderCharges
+);
+
+router.get("/data/tables", listDataTables);
+router.get("/data/export", exportData);
+router.post(
+  "/data/reset",
+  [
+    body("tables").isArray({ min: 1 }),
+    body("tables.*").isString(),
+    body("confirmText").isString(),
+  ],
+  validateRequest,
+  resetData
 );
 
 export default router;

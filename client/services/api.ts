@@ -30,7 +30,7 @@ const resolveApiBase = (): string => {
   return `http://${host}:5000/api`;
 };
 
-const API_BASE = resolveApiBase();
+export const API_BASE = resolveApiBase();
 
 export const getPublicAssetUrl = (path: string): string => {
   if (!path) {

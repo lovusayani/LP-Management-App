@@ -5,6 +5,12 @@ import { ChangeEvent, useEffect, useState } from "react";
 import { BrandLogo } from "@/components/branding/BrandLogo";
 import { BrandingAssets, BrandingLogoVariant, getBrandingAssets, uploadAdminBrandingLogo } from "@/services/branding.service";
 import { getPublicAssetUrl } from "@/services/api";
+import {
+    DataTableInfo,
+    exportDataTables,
+    getDataTables,
+    resetDataTables,
+} from "@/services/dataManagement.service";
 
 const LOGO_SPECS: Array<{
     variant: BrandingLogoVariant;
@@ -43,6 +49,16 @@ export default function AdminSetupPage() {
     const [saving, setSaving] = useState<Partial<Record<BrandingLogoVariant, boolean>>>({});
     const [messages, setMessages] = useState<Partial<Record<BrandingLogoVariant, string>>>({});
 
+    const [dataTables, setDataTables] = useState<DataTableInfo[]>([]);
+    const [tablesLoading, setTablesLoading] = useState(true);
+    const [selectedTables, setSelectedTables] = useState<string[]>([]);
+    const [exporting, setExporting] = useState(false);
+    const [dataMessage, setDataMessage] = useState("");
+    const [dataError, setDataError] = useState("");
+    const [resetModalOpen, setResetModalOpen] = useState(false);
+    const [resetConfirmText, setResetConfirmText] = useState("");
+    const [resetting, setResetting] = useState(false);
+
     useEffect(() => {
         let disposed = false;
 
@@ -65,6 +81,75 @@ export default function AdminSetupPage() {
             disposed = true;
         };
     }, []);
+
+    const loadDataTables = async () => {
+        setTablesLoading(true);
+        try {
+            const tables = await getDataTables();
+            setDataTables(tables);
+        } catch (error) {
+            setDataError(error instanceof Error ? error.message : "Failed to load tables.");
+        } finally {
+            setTablesLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        loadDataTables();
+    }, []);
+
+    const toggleTable = (key: string) => {
+        setSelectedTables((prev) =>
+            prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key]
+        );
+    };
+
+    const toggleAllTables = () => {
+        setSelectedTables((prev) =>
+            prev.length === dataTables.length ? [] : dataTables.map((table) => table.key)
+        );
+    };
+
+    const onExport = async () => {
+        setExporting(true);
+        setDataMessage("");
+        setDataError("");
+        try {
+            await exportDataTables(selectedTables);
+            setDataMessage(
+                selectedTables.length === 0
+                    ? "All tables exported successfully."
+                    : `${selectedTables.length} table(s) exported successfully.`
+            );
+        } catch (error) {
+            setDataError(error instanceof Error ? error.message : "Export failed. Please try again.");
+        } finally {
+            setExporting(false);
+        }
+    };
+
+    const onConfirmReset = async () => {
+        if (resetConfirmText !== "RESET") {
+            return;
+        }
+
+        setResetting(true);
+        setDataMessage("");
+        setDataError("");
+        try {
+            const results = await resetDataTables(selectedTables, resetConfirmText);
+            const totalDeleted = results.reduce((sum, item) => sum + item.deletedCount, 0);
+            setDataMessage(`Reset complete. ${totalDeleted} record(s) removed across ${results.length} table(s).`);
+            setResetModalOpen(false);
+            setResetConfirmText("");
+            setSelectedTables([]);
+            await loadDataTables();
+        } catch (error) {
+            setDataError(error instanceof Error ? error.message : "Reset failed. Please try again.");
+        } finally {
+            setResetting(false);
+        }
+    };
 
     const onFileChange = (variant: BrandingLogoVariant, event: ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0] || null;
@@ -172,6 +257,131 @@ export default function AdminSetupPage() {
                     );
                 })}
             </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur-sm">
+                <div className="mb-4">
+                    <h2 className="text-lg font-semibold text-white">Data Export &amp; Reset</h2>
+                    <p className="mt-1 text-sm text-zinc-400">
+                        Download the current data as an Excel file, or permanently clear records. API
+                        sources and other configuration/settings are never affected by these actions.
+                    </p>
+                </div>
+
+                {tablesLoading ? (
+                    <p className="text-sm text-zinc-400">Loading tables...</p>
+                ) : (
+                    <>
+                        <div className="mb-4 overflow-hidden rounded-xl border border-zinc-800">
+                            <table className="w-full text-left text-sm">
+                                <thead className="bg-zinc-900/70 text-xs uppercase tracking-wide text-zinc-500">
+                                    <tr>
+                                        <th className="px-4 py-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={dataTables.length > 0 && selectedTables.length === dataTables.length}
+                                                onChange={toggleAllTables}
+                                                className="h-4 w-4 rounded border-zinc-600 bg-zinc-950"
+                                            />
+                                        </th>
+                                        <th className="px-4 py-2">Table</th>
+                                        <th className="px-4 py-2">Records</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-800">
+                                    {dataTables.map((table) => (
+                                        <tr key={table.key} className="text-zinc-300">
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedTables.includes(table.key)}
+                                                    onChange={() => toggleTable(table.key)}
+                                                    className="h-4 w-4 rounded border-zinc-600 bg-zinc-950"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">{table.label}</td>
+                                            <td className="px-4 py-2 text-zinc-500">{table.count}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p className="mb-4 text-xs text-zinc-500">
+                            {selectedTables.length === 0
+                                ? "No tables selected — actions apply to all tables."
+                                : `${selectedTables.length} table(s) selected.`}
+                        </p>
+
+                        <div className="flex flex-col gap-3 sm:flex-row">
+                            <button
+                                type="button"
+                                onClick={onExport}
+                                disabled={exporting}
+                                className="flex-1 rounded-xl border border-emerald-500/40 bg-emerald-600/20 px-4 py-2 text-sm font-medium text-emerald-200 transition hover:bg-emerald-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {exporting ? "Exporting..." : "Export to Excel"}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setResetModalOpen(true)}
+                                disabled={resetting}
+                                className="flex-1 rounded-xl border border-red-500/40 bg-red-600/20 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-600/30 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Reset Data
+                            </button>
+                        </div>
+
+                        {dataMessage && <p className="mt-3 text-sm text-emerald-400">{dataMessage}</p>}
+                        {dataError && <p className="mt-3 text-sm text-red-400">{dataError}</p>}
+                    </>
+                )}
+            </div>
+
+            {resetModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-zinc-950 p-6 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-white">Confirm Data Reset</h3>
+                        <p className="mt-2 text-sm text-zinc-400">
+                            This will permanently delete{" "}
+                            {selectedTables.length === 0
+                                ? "ALL records in every table"
+                                : `records from ${selectedTables.length} selected table(s)`}
+                            . This action cannot be undone.
+                        </p>
+                        <p className="mt-3 text-sm text-zinc-400">
+                            Type <span className="font-mono font-semibold text-red-300">RESET</span> to confirm.
+                        </p>
+                        <input
+                            type="text"
+                            value={resetConfirmText}
+                            onChange={(event) => setResetConfirmText(event.target.value)}
+                            placeholder="RESET"
+                            className="mt-3 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100 outline-none focus:border-red-500/60"
+                        />
+                        <div className="mt-5 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setResetModalOpen(false);
+                                    setResetConfirmText("");
+                                }}
+                                disabled={resetting}
+                                className="rounded-xl border border-zinc-700 px-4 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onConfirmReset}
+                                disabled={resetConfirmText !== "RESET" || resetting}
+                                className="rounded-xl border border-red-500/40 bg-red-600/30 px-4 py-2 text-sm font-medium text-red-100 transition hover:bg-red-600/40 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {resetting ? "Resetting..." : "Confirm Reset"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </section>
     );
 }
