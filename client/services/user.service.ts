@@ -333,3 +333,21 @@ export interface UserPageContent {
 export const getPageContent = async (slug: string): Promise<UserPageContent> => {
   return apiFetch<UserPageContent>(`/user/page-content/${slug}`, { method: "GET" });
 };
+
+export interface NoticeListItem {
+  id: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export const getMyNotices = async (): Promise<NoticeListItem[]> => {
+  const data = await apiFetch<{ notices: NoticeListItem[] }>("/user/notices", { method: "GET" });
+  return data.notices;
+};
+
+export const getMyNoticeById = async (id: string): Promise<NoticeListItem> => {
+  const data = await apiFetch<{ notice: NoticeListItem }>(`/user/notices/${id}`, { method: "GET" });
+  return data.notice;
+};

@@ -17,6 +17,7 @@ import {
   uploadProfileAvatar,
 } from "../controllers/user.controller";
 import { downloadPnlUpload, getPaymentSetup, getPublicPageContent, listPnlUploads } from "../controllers/admin.controller";
+import { getMyNoticeById, listMyNotices } from "../controllers/notice.controller";
 import { createDeposite, getDepositeHistory } from "../controllers/deposite.controller";
 import {
   createWithdraw,
@@ -153,6 +154,9 @@ router.get(
   enforceKycApproved,
   transactionAccess
 );
+
+router.get("/notices", listMyNotices);
+router.get("/notices/:id", [param("id").isMongoId()], validateRequest, getMyNoticeById);
 
 router.get("/pnl-uploads", listPnlUploads);
 router.get("/pnl-uploads/:id/download", [param("id").isMongoId()], validateRequest, downloadPnlUpload);

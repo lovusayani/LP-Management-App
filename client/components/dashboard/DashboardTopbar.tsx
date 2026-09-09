@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bell, LogOut, Menu, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bebas_Neue } from "next/font/google";
 
 import { logoutUser } from "@/mvc/frontend/controllers/auth.controller";
+import { getMyNotices } from "@/services/user.service";
 
 const bebasNeue = Bebas_Neue({
     weight: "400",
@@ -28,7 +29,24 @@ interface DashboardTopbarProps {
 
 export const DashboardTopbar = ({ title = "CURREEX", showBack = false }: DashboardTopbarProps) => {
     const [open, setOpen] = useState(false);
+    const [hasUnreadNotices, setHasUnreadNotices] = useState(false);
     const router = useRouter();
+
+    useEffect(() => {
+        let cancelled = false;
+
+        getMyNotices()
+            .then((notices) => {
+                if (!cancelled) {
+                    setHasUnreadNotices(notices.some((notice) => !notice.read));
+                }
+            })
+            .catch(() => undefined);
+
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const onLogout = async () => {
         await logoutUser();
@@ -75,13 +93,16 @@ export const DashboardTopbar = ({ title = "CURREEX", showBack = false }: Dashboa
                     </div>
 
                     <div className="grid shrink-0 grid-cols-3 gap-2 sm:gap-3">
-                        <button
-                            type="button"
-                            aria-label="Notifications"
-                            className="inline-grid h-9 w-9 place-items-center rounded-md border border-white/15 bg-black/20 text-white transition-colors hover:bg-white/10"
+                        <Link
+                            href="/dashboard/notices"
+                            aria-label="Notices"
+                            className="relative inline-grid h-9 w-9 place-items-center rounded-md border border-white/15 bg-black/20 text-white transition-colors hover:bg-white/10"
                         >
                             <Bell className="h-5 w-5" strokeWidth={2} />
-                        </button>
+                            {hasUnreadNotices && (
+                                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-cyan-400" />
+                            )}
+                        </Link>
 
                         <button
                             type="button"

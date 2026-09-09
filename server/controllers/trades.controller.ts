@@ -107,8 +107,17 @@ export const getWalletOverview = asyncHandler(async (req: Request, res: Response
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const tradeWallet = await TradeWallet.findOne({ user: req.user._id }).lean();
-  const oldBalance = tradeWallet?.balance ?? 0;
+  let tradeWallet = await TradeWallet.findOne({ user: req.user._id });
+  if (!tradeWallet) {
+    tradeWallet = await TradeWallet.create({ user: req.user._id, balance: 0 });
+  }
+
+  // Once a summary exists for today, its oldBalance is the fixed start-of-day
+  // baseline. Re-reading tradeWallet.balance instead would re-apply today's
+  // charges/profit/loss on every poll, since this handler persists newBalance
+  // back onto the wallet below.
+  const existingSummary = await WalletDailySummary.findOne({ user: req.user._id, date: today }).lean();
+  const oldBalance = existingSummary ? existingSummary.oldBalance : tradeWallet.balance ?? 0;
 
   const sources = await ApiSource.find({ assignedUsers: req.user._id, isActive: true }).lean();
   const sourceNames = sources.map((s) => s.name);
@@ -147,13 +156,16 @@ export const getWalletOverview = asyncHandler(async (req: Request, res: Response
     loss = Math.abs(todaysTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
   }
 
-  const newBalance = oldBalance - charges + profit - loss;
+  const newBalance = Number((oldBalance - charges + profit - loss).toFixed(2));
 
   await WalletDailySummary.findOneAndUpdate(
     { user: req.user._id, date: today },
     { user: req.user._id, date: today, oldBalance, charges, profit, loss, newBalance },
     { upsert: true }
   );
+
+  tradeWallet.balance = newBalance;
+  await tradeWallet.save();
 
   return res.json({ oldBalance, charges, profit, loss, newBalance });
 });

@@ -6,8 +6,7 @@ import { Boxes, CheckCircle2, CreditCard, Landmark, Layers, ListChecks, Trending
 import { BrokerPageFrame } from "@/design/components/BrokerPageFrame";
 import { GlossyCard } from "@/design/components/GlossyCard";
 import { WalletOverviewCard } from "@/design/components/WalletOverviewCard";
-import { getChargeSummary, getTrades, getWalletOverview, SuimfxTrade } from "@/services/trades.service";
-import { getWalletBalances } from "@/services/user.service";
+import { getChargeSummary, getTrades, getWalletOverview, SuimfxTrade, WalletOverview } from "@/services/trades.service";
 
 const isToday = (dateString: string | null) => {
     if (!dateString) return false;
@@ -37,7 +36,7 @@ const POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 export function BrokerView() {
     const [trades, setTrades] = useState<SuimfxTrade[]>([]);
-    const [walletBalance, setWalletBalance] = useState<number | null>(null);
+    const [walletOverview, setWalletOverview] = useState<WalletOverview | null>(null);
     const [todaysCharge, setTodaysCharge] = useState<number>(0);
     const [monthCharge, setMonthCharge] = useState<number>(0);
     const [loading, setLoading] = useState(true);
@@ -50,7 +49,13 @@ export function BrokerView() {
             // external API and store any newly-seen orders' charges — so
             // this poll is what keeps the stored data current while this
             // dashboard stays open, not just a display refresh.
-            Promise.allSettled([getTrades({ status: "all", limit: 500 }), getWalletBalances(), getChargeSummary()]).then(
+            //
+            // getWalletOverview is the single source of truth for the wallet
+            // card: it computes oldBalance - charges + profit - loss on the
+            // server and persists that result onto the user's TradeWallet
+            // balance, so this same figure is what shows up on the trade
+            // wallet/swap page too.
+            Promise.allSettled([getTrades({ status: "all", limit: 500 }), getWalletOverview(), getChargeSummary()]).then(
                 ([tradesResult, walletResult, chargeResult]) => {
                     if (cancelled) return;
 
@@ -58,7 +63,7 @@ export function BrokerView() {
                         setTrades(tradesResult.value.data);
                     }
                     if (walletResult.status === "fulfilled") {
-                        setWalletBalance(walletResult.value.tradeWalletBalance);
+                        setWalletOverview(walletResult.value);
                     }
                     if (chargeResult.status === "fulfilled") {
                         setTodaysCharge(chargeResult.value.today);
@@ -67,11 +72,6 @@ export function BrokerView() {
                     setLoading(false);
                 }
             );
-
-            // Persist today's wallet summary too; the visible numbers are
-            // computed from the same client-side data as the rest of the
-            // dashboard so they never disagree with what's already on screen.
-            getWalletOverview().catch(() => undefined);
         };
 
         load();
@@ -98,25 +98,20 @@ export function BrokerView() {
     const todaysMargin = todaysTrades.reduce((sum, t) => sum + (t.used_margin || 0), 0);
     const todaysLotSize = todaysTrades.reduce((sum, t) => sum + (t.lot_size || 0), 0);
 
-    const todaysProfit = todaysTrades.filter((t) => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
-    const todaysLoss = Math.abs(todaysTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
-    const overviewOldBalance = walletBalance ?? 0;
-    const overviewNewBalance = overviewOldBalance - todaysCharge + todaysProfit - todaysLoss;
-
     return (
         <BrokerPageFrame title="Dashboard">
             <div className="rounded-[8px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] min-h-[120px] flex flex-col justify-center gap-3">
                 <div className="flex items-start justify-between">
-                    <span className="text-sm font-semibold text-zinc-300">Wallet Overview</span>
+                    <span className="text-sm font-semibold text-zinc-300">Daily Wallet Overview</span>
                     <Wallet className="h-4 w-4 text-zinc-300" strokeWidth={2} />
                 </div>
 
                 <WalletOverviewCard
-                    oldBalance={overviewOldBalance}
-                    charges={todaysCharge}
-                    profit={todaysProfit}
-                    loss={todaysLoss}
-                    newBalance={overviewNewBalance}
+                    oldBalance={walletOverview?.oldBalance ?? 0}
+                    charges={walletOverview?.charges ?? 0}
+                    profit={walletOverview?.profit ?? 0}
+                    loss={walletOverview?.loss ?? 0}
+                    newBalance={walletOverview?.newBalance ?? 0}
                     loading={loading}
                 />
             </div>

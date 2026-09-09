@@ -417,6 +417,34 @@ export const updateAdminUserPushPreference = async (
   );
 };
 
+export interface AdminNoticeRecord {
+  id: string;
+  title: string;
+  message: string;
+  target: "all" | "user";
+  targetUser: { id: string; fullName: string; email: string } | null;
+  readCount: number;
+  createdAt: string;
+}
+
+export const sendAdminNotice = async (payload: {
+  title: string;
+  message: string;
+  target: "all" | "user";
+  userId?: string;
+}): Promise<AdminNoticeRecord> => {
+  const data = await apiFetch<{ notice: AdminNoticeRecord }>("/admin/notices", {
+    method: "POST",
+    body: payload,
+  });
+  return data.notice;
+};
+
+export const getAdminNotices = async (): Promise<AdminNoticeRecord[]> => {
+  const data = await apiFetch<{ notices: AdminNoticeRecord[] }>("/admin/notices", { method: "GET" });
+  return data.notices;
+};
+
 export const getAdminWithdrawMethods = async (): Promise<AdminWithdrawMethodRecord[]> => {
   const data = await apiFetch<{ records: Array<AdminWithdrawMethodRecord & { _id?: string }> }>(
     "/admin/withdrawals/methods",

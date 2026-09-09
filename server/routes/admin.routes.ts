@@ -55,6 +55,7 @@ import {
   setUserSymbolCharge,
 } from "../controllers/chargeSetting.controller";
 import { exportData, listDataTables, resetData } from "../controllers/dataManagement.controller";
+import { createNotice, listAdminNotices } from "../controllers/notice.controller";
 import { protect } from "../middlewares/auth.middleware";
 import { authorizeRole } from "../middlewares/role.middleware";
 import { pdfUpload, pngUpload, imageUpload } from "../middlewares/upload.middleware";
@@ -329,6 +330,22 @@ router.delete(
   validateRequest,
   deleteOrderCharges
 );
+
+router.post(
+  "/notices",
+  [
+    body("title").isString().trim().isLength({ min: 1, max: 150 }),
+    body("message").isString().trim().isLength({ min: 1, max: 2000 }),
+    body("target").isString().isIn(["all", "user"]),
+    body("userId")
+      .if(body("target").equals("user"))
+      .isMongoId()
+      .withMessage("A user must be selected when sending to a single user"),
+  ],
+  validateRequest,
+  createNotice
+);
+router.get("/notices", listAdminNotices);
 
 router.get("/data/tables", listDataTables);
 router.get("/data/export", exportData);

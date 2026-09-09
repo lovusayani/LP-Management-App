@@ -6,7 +6,7 @@ import { Bolt, ChartCandlestick, CircleUserRound, House, Wallet } from "lucide-r
 
 const items = [
     { href: "/dashboard/profile", label: "Profile", icon: CircleUserRound },
-    { href: "/dashboard/performance", label: "Chart", icon: ChartCandlestick },
+    { href: "/dashboard/brokerview", label: "Chart", icon: ChartCandlestick },
     { href: "/dashboard", label: "Home", icon: House, isCenter: true },
     { href: "/dashboard/wallet", label: "Wallet", icon: Wallet },
     { href: "/dashboard/settings", label: "Settings", icon: Bolt },

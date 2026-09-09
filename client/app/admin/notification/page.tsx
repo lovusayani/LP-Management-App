@@ -4,8 +4,11 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
     AdminLpUser,
+    AdminNoticeRecord,
+    getAdminNotices,
     getAdminNotificationOverview,
     getAllLpUsers,
+    sendAdminNotice,
     sendAdminPushToAllUsers,
     sendAdminPushToSingleUser,
     updateAdminUserPushPreference,
@@ -41,6 +44,15 @@ export default function AdminNotificationPage() {
     const [sendingSingle, setSendingSingle] = useState(false);
     const [updatingPreference, setUpdatingPreference] = useState(false);
 
+    const [notices, setNotices] = useState<AdminNoticeRecord[]>([]);
+    const [noticeTarget, setNoticeTarget] = useState<"all" | "user">("all");
+    const [noticeUserId, setNoticeUserId] = useState("");
+    const [noticeTitle, setNoticeTitle] = useState("");
+    const [noticeMessage, setNoticeMessage] = useState("");
+    const [sendingNotice, setSendingNotice] = useState(false);
+    const [noticeMessageStatus, setNoticeMessageStatus] = useState("");
+    const [noticeError, setNoticeError] = useState("");
+
     const selectedUser = useMemo(
         () => users.find((user) => user.id === selectedUserId) || null,
         [selectedUserId, users]
@@ -56,13 +68,15 @@ export default function AdminNotificationPage() {
         setError("");
 
         try {
-            const [usersData, overviewData] = await Promise.all([
+            const [usersData, overviewData, noticesData] = await Promise.all([
                 getAllLpUsers(),
                 getAdminNotificationOverview(),
+                getAdminNotices(),
             ]);
 
             setUsers(usersData);
             setOverview(overviewData);
+            setNotices(noticesData);
 
             if (!selectedUserId && usersData.length > 0) {
                 setSelectedUserId(usersData[0].id);
@@ -70,6 +84,10 @@ export default function AdminNotificationPage() {
 
             if (!pushPreferenceUserId && usersData.length > 0) {
                 setPushPreferenceUserId(usersData[0].id);
+            }
+
+            if (!noticeUserId && usersData.length > 0) {
+                setNoticeUserId(usersData[0].id);
             }
         } catch (loadError) {
             setError(loadError instanceof Error ? loadError.message : "Failed to load notification data");
@@ -136,6 +154,38 @@ export default function AdminNotificationPage() {
         }
     };
 
+    const onSendNotice = async (event: FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+
+        if (noticeTarget === "user" && !noticeUserId) {
+            setNoticeError("Please select a user");
+            return;
+        }
+
+        setSendingNotice(true);
+        setNoticeMessageStatus("");
+        setNoticeError("");
+
+        try {
+            await sendAdminNotice({
+                title: noticeTitle,
+                message: noticeMessage,
+                target: noticeTarget,
+                userId: noticeTarget === "user" ? noticeUserId : undefined,
+            });
+
+            setNoticeMessageStatus("Notice sent successfully");
+            setNoticeTitle("");
+            setNoticeMessage("");
+            const noticesData = await getAdminNotices();
+            setNotices(noticesData);
+        } catch (sendError) {
+            setNoticeError(sendError instanceof Error ? sendError.message : "Failed to send notice");
+        } finally {
+            setSendingNotice(false);
+        }
+    };
+
     const onTogglePushPreference = async (enabled: boolean) => {
         if (!pushPreferenceUserId) {
             setError("Please select a user");
@@ -180,6 +230,100 @@ export default function AdminNotificationPage() {
                     <div className="rounded-lg border border-zinc-800 px-3 py-2">Registered Devices: {overview.totalTokens}</div>
                 </div>
             </div>
+
+            <form className="card space-y-3" onSubmit={onSendNotice}>
+                <div>
+                    <h2 className="text-lg font-semibold">Send Notice</h2>
+                    <p className="text-sm text-zinc-400">
+                        Posts an in-app notice the user sees via the bell icon on their dashboard. Works
+                        regardless of push notification setup.
+                    </p>
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-sm text-zinc-300">Title</label>
+                    <input
+                        className="input"
+                        value={noticeTitle}
+                        onChange={(event) => setNoticeTitle(event.target.value)}
+                        maxLength={150}
+                        required
+                    />
+                </div>
+
+                <div className="space-y-1">
+                    <label className="text-sm text-zinc-300">Message</label>
+                    <textarea
+                        className="input min-h-24"
+                        value={noticeMessage}
+                        onChange={(event) => setNoticeMessage(event.target.value)}
+                        maxLength={2000}
+                        required
+                    />
+                </div>
+
+                <div className="grid gap-2 md:grid-cols-[auto_1fr_auto] md:items-end">
+                    <div className="space-y-1">
+                        <label className="text-sm text-zinc-300">Send To</label>
+                        <select
+                            className="input"
+                            value={noticeTarget}
+                            onChange={(event) => setNoticeTarget(event.target.value as "all" | "user")}
+                        >
+                            <option value="all">All Users</option>
+                            <option value="user">Single User</option>
+                        </select>
+                    </div>
+
+                    {noticeTarget === "user" && (
+                        <div className="space-y-1">
+                            <label className="text-sm text-zinc-300">User</label>
+                            <select
+                                className="input"
+                                value={noticeUserId}
+                                onChange={(event) => setNoticeUserId(event.target.value)}
+                            >
+                                {users.map((user) => (
+                                    <option key={`notice-${user.id}`} value={user.id}>
+                                        {user.fullName} ({user.email})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+
+                    <button type="submit" className="btn-primary" disabled={sendingNotice}>
+                        {sendingNotice ? "Sending..." : "Send Notice"}
+                    </button>
+                </div>
+
+                {noticeError && <p className="rounded-lg bg-red-500/10 p-2 text-sm text-red-300">{noticeError}</p>}
+                {noticeMessageStatus && (
+                    <p className="rounded-lg bg-green-500/10 p-2 text-sm text-green-300">{noticeMessageStatus}</p>
+                )}
+
+                {notices.length > 0 && (
+                    <div className="space-y-2 border-t border-zinc-800 pt-3">
+                        <p className="text-sm font-medium text-zinc-300">Recently Sent</p>
+                        <div className="space-y-2">
+                            {notices.slice(0, 8).map((notice) => (
+                                <div key={notice.id} className="rounded-lg border border-zinc-800 px-3 py-2 text-sm">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="font-medium text-zinc-100">{notice.title}</span>
+                                        <span className="shrink-0 text-xs text-zinc-500">
+                                            {notice.target === "all" ? "All Users" : notice.targetUser?.fullName || "User"}
+                                        </span>
+                                    </div>
+                                    <p className="mt-1 text-xs text-zinc-400">{notice.message}</p>
+                                    <p className="mt-1 text-xs text-zinc-600">
+                                        {new Date(notice.createdAt).toLocaleString()} · Read by {notice.readCount}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </form>
 
             <form className="card space-y-3" onSubmit={onSendAll}>
                 <h2 className="text-lg font-semibold">Send Notification</h2>
