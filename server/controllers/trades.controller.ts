@@ -112,19 +112,35 @@ export const getWalletOverview = asyncHandler(async (req: Request, res: Response
     tradeWallet = await TradeWallet.create({ user: req.user._id, balance: 0 });
   }
 
-  // Once a summary exists for today, its oldBalance is the fixed start-of-day
-  // baseline. Re-reading tradeWallet.balance instead would re-apply today's
-  // charges/profit/loss on every poll, since this handler persists newBalance
-  // back onto the wallet below.
-  const existingSummary = await WalletDailySummary.findOne({ user: req.user._id, date: today }).lean();
-  const oldBalance = existingSummary ? existingSummary.oldBalance : tradeWallet.balance ?? 0;
+  // The summary's charges/profit/loss track how much of today's totals have
+  // already been applied to the wallet. Each call only applies the delta
+  // since the last call, then advances those fields to the new totals — this
+  // way a wallet swap that happens between polls (which mutates
+  // tradeWallet.balance directly) is never clobbered by re-basing off a
+  // stale start-of-day balance.
+  let summary = await WalletDailySummary.findOne({ user: req.user._id, date: today });
+  if (!summary) {
+    summary = await WalletDailySummary.create({
+      user: req.user._id,
+      date: today,
+      oldBalance: tradeWallet.balance ?? 0,
+      charges: 0,
+      profit: 0,
+      loss: 0,
+      newBalance: tradeWallet.balance ?? 0,
+    });
+  }
+
+  const appliedCharges = summary.charges;
+  const appliedProfit = summary.profit;
+  const appliedLoss = summary.loss;
 
   const sources = await ApiSource.find({ assignedUsers: req.user._id, isActive: true }).lean();
   const sourceNames = sources.map((s) => s.name);
 
-  let charges = 0;
-  let profit = 0;
-  let loss = 0;
+  let totalCharges = 0;
+  let totalProfit = 0;
+  let totalLoss = 0;
 
   if (sourceNames.length > 0) {
     const [chargeResult, tradeResults] = await Promise.all([
@@ -139,7 +155,7 @@ export const getWalletOverview = asyncHandler(async (req: Request, res: Response
       ),
     ]);
 
-    charges = chargeResult[0]?.total || 0;
+    totalCharges = chargeResult[0]?.total || 0;
 
     const todaysTrades: ExternalTrade[] = [];
     tradeResults.forEach((result) => {
@@ -152,20 +168,33 @@ export const getWalletOverview = asyncHandler(async (req: Request, res: Response
       }
     });
 
-    profit = todaysTrades.filter((t) => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
-    loss = Math.abs(todaysTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
+    totalProfit = todaysTrades.filter((t) => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0);
+    totalLoss = Math.abs(todaysTrades.filter((t) => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0));
   }
 
-  const newBalance = Number((oldBalance - charges + profit - loss).toFixed(2));
+  // Only apply what's newly accrued since the last time this ran — the
+  // totals above are cumulative for the whole day, not per-call deltas.
+  const deltaCharges = Math.max(0, totalCharges - appliedCharges);
+  const deltaProfit = Math.max(0, totalProfit - appliedProfit);
+  const deltaLoss = Math.max(0, totalLoss - appliedLoss);
+  const netDelta = deltaProfit - deltaLoss - deltaCharges;
 
-  await WalletDailySummary.findOneAndUpdate(
-    { user: req.user._id, date: today },
-    { user: req.user._id, date: today, oldBalance, charges, profit, loss, newBalance },
-    { upsert: true }
-  );
+  if (netDelta !== 0) {
+    tradeWallet.balance = Number(((tradeWallet.balance ?? 0) + netDelta).toFixed(2));
+    await tradeWallet.save();
+  }
 
-  tradeWallet.balance = newBalance;
-  await tradeWallet.save();
+  summary.charges = totalCharges;
+  summary.profit = totalProfit;
+  summary.loss = totalLoss;
+  summary.newBalance = tradeWallet.balance;
+  await summary.save();
 
-  return res.json({ oldBalance, charges, profit, loss, newBalance });
+  return res.json({
+    oldBalance: summary.oldBalance,
+    charges: totalCharges,
+    profit: totalProfit,
+    loss: totalLoss,
+    newBalance: tradeWallet.balance,
+  });
 });
